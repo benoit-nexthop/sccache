@@ -805,11 +805,9 @@ where
             tc_archive = Some(archive_path);
         }
 
-        // Retry loop for job allocation when server is busy
         let job_alloc = loop {
             debug!("[{}]: Requesting allocation", out_pretty);
             let jares = dist_client.do_alloc_job(dist_toolchain.clone()).await?;
-            debug!("[{}]: jares={:?}", out_pretty, jares);
             match jares {
                 dist::AllocJobResult::Success {
                     job_alloc,
@@ -840,14 +838,20 @@ where
                     need_toolchain: false,
                 } => break job_alloc,
                 dist::AllocJobResult::Fail { msg } => {
-                    // Server is busy - sleep and retry
-                    let sleep_millis = rand::thread_rng().gen_range(1000..=10000);
-                    debug!(
-                        "[{}]: Failed to allocate job: {}. Retrying in {} ms...",
-                        out_pretty, msg, sleep_millis
-                    );
-                    tokio::time::sleep(Duration::from_millis(sleep_millis)).await;
-                    // Continue the loop to retry
+                    // Server is busy - check config to decide whether to retry or fail
+                    if dist_client.retry_on_busy() {
+                        // Retry with random backoff
+                        let sleep_millis = rand::thread_rng().gen_range(1000..=10000);
+                        debug!(
+                            "[{}]: Failed to allocate job: {}. Retrying in {} ms...",
+                            out_pretty, msg, sleep_millis
+                        );
+                        tokio::time::sleep(Duration::from_millis(sleep_millis)).await;
+                        // Continue the loop to retry
+                    } else {
+                        // Fail immediately to trigger local fallback
+                        bail!("Server busy: {}", msg);
+                    }
                 }
             }
         };
@@ -3125,6 +3129,9 @@ mod test_dist {
         fn rewrite_includes_only(&self) -> bool {
             false
         }
+        fn retry_on_busy(&self) -> bool {
+            false
+        }
         fn get_custom_toolchain(&self, _exe: &Path) -> Option<PathBuf> {
             None
         }
@@ -3177,6 +3184,9 @@ mod test_dist {
             Ok((self.tc.clone(), None))
         }
         fn rewrite_includes_only(&self) -> bool {
+            false
+        }
+        fn retry_on_busy(&self) -> bool {
             false
         }
         fn get_custom_toolchain(&self, _exe: &Path) -> Option<PathBuf> {
@@ -3248,6 +3258,9 @@ mod test_dist {
             Ok((self.tc.clone(), None))
         }
         fn rewrite_includes_only(&self) -> bool {
+            false
+        }
+        fn retry_on_busy(&self) -> bool {
             false
         }
         fn get_custom_toolchain(&self, _exe: &Path) -> Option<PathBuf> {
@@ -3327,6 +3340,9 @@ mod test_dist {
             ))
         }
         fn rewrite_includes_only(&self) -> bool {
+            false
+        }
+        fn retry_on_busy(&self) -> bool {
             false
         }
         fn get_custom_toolchain(&self, _exe: &Path) -> Option<PathBuf> {
@@ -3426,6 +3442,9 @@ mod test_dist {
             ))
         }
         fn rewrite_includes_only(&self) -> bool {
+            false
+        }
+        fn retry_on_busy(&self) -> bool {
             false
         }
         fn get_custom_toolchain(&self, _exe: &Path) -> Option<PathBuf> {

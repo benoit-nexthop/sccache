@@ -14,6 +14,9 @@ toolchains = []
 # the maximum size of the toolchain cache in bytes
 toolchain_cache_size = 5368709120
 cache_dir = "/home/user/.cache/sccache-dist-client"
+# When true, retry job allocation when the server is busy instead of falling back to local compilation.
+# When false (default), fall back to local compilation immediately when the server is busy.
+retry_on_busy = false
 
 [dist.auth]
 type = "token"

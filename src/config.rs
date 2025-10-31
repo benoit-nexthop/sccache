@@ -562,6 +562,9 @@ pub struct DistConfig {
     #[serde(deserialize_with = "deserialize_size_from_str")]
     pub toolchain_cache_size: u64,
     pub rewrite_includes_only: bool,
+    /// When true, retry job allocation when the server is busy instead of falling back to local compilation.
+    /// When false (default), fall back to local compilation immediately when the server is busy.
+    pub retry_on_busy: bool,
 }
 
 impl Default for DistConfig {
@@ -573,6 +576,7 @@ impl Default for DistConfig {
             toolchains: Default::default(),
             toolchain_cache_size: default_toolchain_cache_size(),
             rewrite_includes_only: false,
+            retry_on_busy: false,
         }
     }
 }
@@ -1643,6 +1647,7 @@ no_credentials = true
                 toolchains: vec![],
                 toolchain_cache_size: 5368709120,
                 rewrite_includes_only: false,
+                retry_on_busy: false,
             },
             server_startup_timeout_ms: Some(10000),
         }
