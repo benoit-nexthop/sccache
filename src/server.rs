@@ -157,6 +157,7 @@ pub struct DistClientConfig {
     toolchain_cache_size: u64,
     toolchains: Vec<config::DistToolchainConfig>,
     rewrite_includes_only: bool,
+    retry_on_busy: bool,
     fail_on_dist_error: bool,
 }
 
@@ -214,6 +215,7 @@ impl DistClientContainer {
             toolchain_cache_size: config.dist.toolchain_cache_size,
             toolchains: config.dist.toolchains.clone(),
             rewrite_includes_only: config.dist.rewrite_includes_only,
+            retry_on_busy: config.dist.retry_on_busy,
             fail_on_dist_error: config.dist.fail_on_dist_error,
         };
         let state = Self::create_state(config);
@@ -380,6 +382,7 @@ impl DistClientContainer {
                     &config.toolchains,
                     auth_token,
                     config.rewrite_includes_only,
+                    config.retry_on_busy,
                     config.fail_on_dist_error,
                 );
                 let dist_client =
@@ -979,6 +982,7 @@ where
                     toolchain_cache_size: 0,
                     toolchains: vec![],
                     rewrite_includes_only: false,
+                    retry_on_busy: false,
                     fail_on_dist_error: false,
                 }),
                 dist_client,

@@ -1102,6 +1102,7 @@ mod client {
         pool: tokio::runtime::Handle,
         tc_cache: Arc<cache::ClientToolchains>,
         rewrite_includes_only: bool,
+        retry_on_busy: bool,
         fail_on_dist_error: bool,
     }
 
@@ -1114,6 +1115,7 @@ mod client {
             toolchain_configs: &[config::DistToolchainConfig],
             auth_token: String,
             rewrite_includes_only: bool,
+            retry_on_busy: bool,
             fail_on_dist_error: bool,
         ) -> Result<Self> {
             let timeout = Duration::new(REQUEST_TIMEOUT_SECS, 0);
@@ -1137,6 +1139,7 @@ mod client {
                 pool: pool.clone(),
                 tc_cache: Arc::new(client_toolchains),
                 rewrite_includes_only,
+                retry_on_busy,
                 fail_on_dist_error,
             })
         }
@@ -1327,6 +1330,9 @@ mod client {
 
         fn rewrite_includes_only(&self) -> bool {
             self.rewrite_includes_only
+        }
+        fn retry_on_busy(&self) -> bool {
+            self.retry_on_busy
         }
         fn fail_on_dist_error(&self) -> bool {
             self.fail_on_dist_error

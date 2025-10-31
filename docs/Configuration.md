@@ -17,6 +17,9 @@ cache_dir = "/home/user/.cache/sccache-dist-client"
 # if true, errors during distributed compilation will cause the build to fail
 # instead of falling back to local compilation (default: false)
 fail_on_dist_error = false
+# When true, retry job allocation when the server is busy instead of falling back to local compilation.
+# When false (default), fall back to local compilation immediately when the server is busy.
+retry_on_busy = false
 
 [dist.auth]
 type = "token"
