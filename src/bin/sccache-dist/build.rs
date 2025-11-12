@@ -292,28 +292,55 @@ impl OverlayBuilder {
                     let work_dir = overlay.build_dir.join("work");
                     let upper_dir = overlay.build_dir.join("upper");
                     let target_dir = overlay.build_dir.join("target");
-                    fs::create_dir(&work_dir).context("Failed to create overlay work directory")?;
-                    fs::create_dir(&upper_dir)
-                        .context("Failed to create overlay upper directory")?;
-                    fs::create_dir(&target_dir)
-                        .context("Failed to create overlay target directory")?;
+                    fs::create_dir(&work_dir).with_context(|| {
+                        format!(
+                            "Failed to create overlay work directory: {:?}",
+                            work_dir
+                        )
+                    })?;
+                    fs::create_dir(&upper_dir).with_context(|| {
+                        format!(
+                            "Failed to create overlay upper directory: {:?}",
+                            upper_dir
+                        )
+                    })?;
+                    fs::create_dir(&target_dir).with_context(|| {
+                        format!(
+                            "Failed to create overlay target directory: {:?}",
+                            target_dir
+                        )
+                    })?;
 
                     let () = Overlay::writable(
                         iter::once(overlay.toolchain_dir.as_path()),
-                        upper_dir,
-                        work_dir,
+                        upper_dir.clone(),
+                        work_dir.clone(),
                         &target_dir,
                         // This error is unfortunately not Send+Sync
                     )
                     .mount()
-                    .map_err(|e| anyhow!("Failed to mount overlay FS: {}", e.to_string()))?;
+                    .map_err(|e| {
+                        anyhow!(
+                            "Failed to mount overlay FS (toolchain: {:?}, upper: {:?}, work: {:?}, target: {:?}): {}",
+                            overlay.toolchain_dir,
+                            upper_dir,
+                            work_dir,
+                            target_dir,
+                            e.to_string()
+                        )
+                    })?;
 
                     trace!("copying in inputs");
                     // Note that we don't unpack directly into the upperdir since there overlayfs has some
                     // special marker files that we don't want to create by accident (or malicious intent)
                     tar::Archive::new(inputs_rdr)
                         .unpack(&target_dir)
-                        .context("Failed to unpack inputs to overlay")?;
+                        .with_context(|| {
+                            format!(
+                                "Failed to unpack inputs to overlay target directory: {:?}",
+                                target_dir
+                            )
+                        })?;
 
                     let CompileCommand {
                         executable,
@@ -324,8 +351,13 @@ impl OverlayBuilder {
                     let cwd = Path::new(&cwd);
 
                     trace!("creating output directories");
-                    fs::create_dir_all(join_suffix(&target_dir, cwd))
-                        .context("Failed to create cwd")?;
+                    let cwd_path = join_suffix(&target_dir, cwd);
+                    fs::create_dir_all(&cwd_path).with_context(|| {
+                        format!(
+                            "Failed to create working directory {:?} in target {:?}",
+                            cwd, target_dir
+                        )
+                    })?;
                     for path in output_paths.iter() {
                         // If it doesn't have a parent, nothing needs creating
                         let output_parent = if let Some(p) = Path::new(path).parent() {
@@ -333,8 +365,13 @@ impl OverlayBuilder {
                         } else {
                             continue;
                         };
-                        fs::create_dir_all(join_suffix(&target_dir, cwd.join(output_parent)))
-                            .context("Failed to create an output directory")?;
+                        let output_dir = join_suffix(&target_dir, cwd.join(output_parent));
+                        fs::create_dir_all(&output_dir).with_context(|| {
+                            format!(
+                                "Failed to create output directory {:?} for path {:?}",
+                                output_dir, path
+                            )
+                        })?;
                     }
 
                     trace!("performing compile");
@@ -382,8 +419,22 @@ impl OverlayBuilder {
                     cmd.args(arguments);
                     let compile_output = cmd
                         .output()
-                        .context("Failed to retrieve output from compile")?;
+                        .context("Failed to execute bubblewrap for compilation")?;
                     trace!("compile_output: {:?}", compile_output);
+
+                    // If bwrap failed, provide more context about what went wrong
+                    if !compile_output.status.success() {
+                        let stderr = String::from_utf8_lossy(&compile_output.stderr);
+                        let stdout = String::from_utf8_lossy(&compile_output.stdout);
+                        if stderr.contains("bwrap:") || stdout.contains("bwrap:") {
+                            warn!("Bubblewrap execution failed:");
+                            warn!("  Status: {}", compile_output.status);
+                            warn!("  Stderr: {}", stderr);
+                            warn!("  Stdout: {}", stdout);
+                            warn!("  Build directory: {:?}", overlay.build_dir);
+                            warn!("  Target directory: {:?}", target_dir);
+                        }
+                    }
 
                     let mut outputs = vec![];
                     trace!("retrieving {:?}", output_paths);

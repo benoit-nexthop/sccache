@@ -440,7 +440,27 @@ impl ProcessOutput {
         } = o;
         let code = match (status.code(), status.signal()) {
             (Some(c), _) => c,
-            (None, Some(s)) => bail!("Process status {} terminated with signal {}", status, s),
+            (None, Some(s)) => {
+                // Include stderr in the error message to provide more context
+                let stderr_preview = if stderr.is_empty() {
+                    String::new()
+                } else {
+                    let preview = String::from_utf8_lossy(&stderr);
+                    let preview = preview.trim();
+                    // Limit to last 500 chars to avoid huge error messages
+                    let preview = if preview.len() > 500 {
+                        &preview[preview.len() - 500..]
+                    } else {
+                        preview
+                    };
+                    format!("\nCompiler stderr: {}", preview)
+                };
+                bail!(
+                    "Compiler killed by signal {}{}",
+                    s,
+                    stderr_preview
+                )
+            }
             (None, None) => bail!("Process status {} has no exit code or signal", status),
         };
         Ok(ProcessOutput {

@@ -889,7 +889,7 @@ where
 
         let job_id = job_alloc.job_id;
         let server_id = job_alloc.server_id;
-        debug!("[{}]: Running job", out_pretty);
+        debug!("[{}]: Running job on server {}", out_pretty, server_id.addr());
         let ((job_id, server_id), (jres, path_transformer)) = dist_client
             .do_run_job(
                 job_alloc,
@@ -901,14 +901,21 @@ where
             .map(move |res| ((job_id, server_id), res))
             .with_context(|| {
                 format!(
-                    "could not run distributed compilation job on {:?}",
-                    server_id
+                    "Remote compilation error on server {} (job {})",
+                    server_id.addr(),
+                    job_id.0
                 )
             })?;
 
         let jc = match jres {
             dist::RunJobResult::Complete(jc) => jc,
-            dist::RunJobResult::JobNotFound => bail!("Job {} not found on server", job_id),
+            dist::RunJobResult::JobNotFound => {
+                bail!(
+                    "Remote error: Job {} not found on server {}",
+                    job_id.0,
+                    server_id.addr()
+                )
+            }
         };
         debug!(
             "fetched {:?}",
@@ -970,7 +977,27 @@ where
                 .handle_outputs(&path_transformer, &output_paths, &extra_inputs)
                 .with_context(|| "failed to rewrite outputs from compile")
         );
-        Ok((DistType::Ok(server_id), retry_count, jc.output.into()))
+
+        // Add server context to stderr/stdout if there's any output
+        // This helps users identify which remote server produced the output
+        let mut output: process::Output = jc.output.into();
+        if !output.stderr.is_empty() || !output.stdout.is_empty() {
+            let server_prefix = format!("[sccache: compiled on remote server {}]\n", server_id.addr());
+
+            if !output.stderr.is_empty() {
+                let mut new_stderr = server_prefix.clone().into_bytes();
+                new_stderr.extend_from_slice(&output.stderr);
+                output.stderr = new_stderr;
+            }
+
+            if !output.stdout.is_empty() {
+                let mut new_stdout = server_prefix.into_bytes();
+                new_stdout.extend_from_slice(&output.stdout);
+                output.stdout = new_stdout;
+            }
+        }
+
+        Ok((DistType::Ok(server_id), retry_count, output))
     };
 
     use futures::TryFutureExt;
@@ -2575,8 +2602,11 @@ LLVM version: 6.0",
             _ => panic!("Unexpected compile result: {:?}", cached),
         }
         assert_eq!(exit_status(0), res.status);
-        assert_eq!(COMPILER_STDOUT, res.stdout.as_slice());
-        assert_eq!(COMPILER_STDERR, res.stderr.as_slice());
+        // Distributed compilation adds server context to stdout/stderr
+        let expected_stdout = b"[sccache: compiled on remote server 0.0.0.0:1]\ncompiler stdout";
+        let expected_stderr = b"[sccache: compiled on remote server 0.0.0.0:1]\ncompiler stderr";
+        assert_eq!(expected_stdout, res.stdout.as_slice());
+        assert_eq!(expected_stderr, res.stderr.as_slice());
         // Now compile again, which should be a cache hit.
         fs::remove_file(&obj).unwrap();
         // The preprocessor invocation.
@@ -2606,8 +2636,9 @@ LLVM version: 6.0",
         assert!(fs::metadata(&obj).map(|m| m.len() > 0).unwrap());
         assert_eq!(CompileResult::CacheHit(Duration::new(0, 0)), cached);
         assert_eq!(exit_status(0), res.status);
-        assert_eq!(COMPILER_STDOUT, res.stdout.as_slice());
-        assert_eq!(COMPILER_STDERR, res.stderr.as_slice());
+        // Cache hit should return the same output that was cached (with server context)
+        assert_eq!(expected_stdout, res.stdout.as_slice());
+        assert_eq!(expected_stderr, res.stderr.as_slice());
     }
 
     #[test_case(true ; "with preprocessor cache")]
