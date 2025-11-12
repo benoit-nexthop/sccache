@@ -1506,6 +1506,15 @@ where
                                     res.stderr = errmsg.as_bytes().to_vec();
                                 }
                                 Err(err) => {
+                                    // Check if this is a "fail_on_dist_error" case - if so, propagate the error
+                                    // instead of converting it to a response
+                                    let err_string = format!("{:#}", err);
+                                    if err_string.contains("Distributed compilation failed") {
+                                        // Make sure the write guard has been dropped ASAP.
+                                        drop(stats);
+                                        return Err(err);
+                                    }
+
                                     stats.cache_errors.increment(&kind, &lang);
                                     // Make sure the write guard has been dropped ASAP.
                                     drop(stats);
