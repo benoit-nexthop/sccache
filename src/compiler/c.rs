@@ -131,6 +131,14 @@ impl ParsedArguments {
     }
 }
 
+/// Context for collecting translation unit statistics
+#[derive(Debug, Clone, Default)]
+struct TuStatsContext {
+    preprocessed_size: usize,
+    num_includes: usize,
+    preprocess_duration: std::time::Duration,
+}
+
 /// A generic implementation of the `Compilation` trait for C/C++ compilers.
 struct CCompilation<I: CCompilerImpl> {
     parsed_args: ParsedArguments,
@@ -141,6 +149,7 @@ struct CCompilation<I: CCompilerImpl> {
     compiler: I,
     cwd: PathBuf,
     env_vars: Vec<(OsString, OsString)>,
+    tu_stats_context: Option<TuStatsContext>,
 }
 
 /// Supported C compilers.
@@ -507,6 +516,7 @@ where
                                     compiler: self.compiler.to_owned(),
                                     cwd: cwd.to_owned(),
                                     env_vars: env_vars.to_owned(),
+                                    tu_stats_context: None,
                                 }),
                                 weak_toolchain_key,
                             });
@@ -518,6 +528,7 @@ where
             }
         }
 
+        let preprocess_start = std::time::Instant::now();
         let result = self
             .compiler
             .preprocess(
@@ -531,6 +542,7 @@ where
                 use_preprocessor_cache_mode,
             )
             .await;
+        let preprocess_duration = preprocess_start.elapsed();
         let out_pretty = self.parsed_args.output_pretty().into_owned();
         let result = result.map_err(|e| {
             debug!("[{}]: preprocessor failed: {:?}", out_pretty, e);
@@ -617,6 +629,9 @@ where
             )
         };
 
+        // Get the number of includes before moving include_files
+        let num_includes = include_files.len();
+
         // Cache the preprocessing step
         if let Some(preprocessor_key) = preprocessor_key {
             if !include_files.is_empty() {
@@ -645,6 +660,14 @@ where
             self.executable.to_string_lossy(),
             self.executable_digest
         );
+
+        // Collect translation unit statistics context (will be recorded later if enabled)
+        let tu_stats_context = Some(TuStatsContext {
+            preprocessed_size: preprocessor_result.stdout.len(),
+            num_includes,
+            preprocess_duration,
+        });
+
         Ok(HashResult {
             key,
             compilation: Box::new(CCompilation {
@@ -656,6 +679,7 @@ where
                 compiler: self.compiler.clone(),
                 cwd,
                 env_vars,
+                tu_stats_context,
             }),
             weak_toolchain_key,
         })
@@ -1232,6 +1256,18 @@ impl<T: CommandCreatorSync, I: CCompilerImpl> Compilation<T> for CCompilation<I>
                     optional: output.optional,
                 }),
         )
+    }
+
+    fn tu_stats_context(&self) -> Option<(PathBuf, usize, usize, std::time::Duration)> {
+        self.tu_stats_context.as_ref().map(|ctx| {
+            let input_file = self.cwd.join(&self.parsed_args.input);
+            (
+                input_file,
+                ctx.preprocessed_size,
+                ctx.num_includes,
+                ctx.preprocess_duration,
+            )
+        })
     }
 }
 

@@ -597,6 +597,25 @@ impl DistConfig {
     }
 }
 
+/// Configuration for translation unit statistics collection
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+#[serde(default)]
+#[serde(deny_unknown_fields)]
+pub struct TranslationUnitStatsConfig {
+    /// Whether to collect translation unit statistics
+    pub enabled: bool,
+    /// Path to the statistics database file
+    pub stats_file: Option<PathBuf>,
+}
+
+impl Default for TranslationUnitStatsConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            stats_file: None,
+        }
+    }
+}
 // TODO: fields only pub for tests
 #[derive(Debug, Default, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(default)]
@@ -605,6 +624,7 @@ pub struct FileConfig {
     pub cache: CacheConfigs,
     pub dist: DistConfig,
     pub server_startup_timeout_ms: Option<u64>,
+    pub translation_unit_stats: TranslationUnitStatsConfig,
 }
 
 // If the file doesn't exist or we can't read it, log the issue and proceed. If the
@@ -999,6 +1019,7 @@ pub struct Config {
     pub fallback_cache: DiskCacheConfig,
     pub dist: DistConfig,
     pub server_startup_timeout: Option<std::time::Duration>,
+    pub translation_unit_stats: TranslationUnitStatsConfig,
 }
 
 impl Config {
@@ -1020,6 +1041,7 @@ impl Config {
             cache,
             dist,
             server_startup_timeout_ms,
+            translation_unit_stats,
         } = file_conf;
         conf_caches.merge(cache);
 
@@ -1035,6 +1057,7 @@ impl Config {
             fallback_cache,
             dist,
             server_startup_timeout,
+            translation_unit_stats,
         }
     }
 }
@@ -1334,6 +1357,7 @@ fn config_overrides() {
         },
         dist: Default::default(),
         server_startup_timeout_ms: None,
+        translation_unit_stats: Default::default(),
     };
 
     assert_eq!(
@@ -1356,6 +1380,7 @@ fn config_overrides() {
             },
             dist: Default::default(),
             server_startup_timeout: None,
+            translation_unit_stats: Default::default(),
         }
     );
 }
@@ -1667,6 +1692,7 @@ no_credentials = true
                 remote_only: false,
             },
             server_startup_timeout_ms: Some(10000),
+            translation_unit_stats: Default::default(),
         }
     )
 }
@@ -1759,6 +1785,7 @@ size = "7g"
                 ..Default::default()
             },
             server_startup_timeout_ms: None,
+            translation_unit_stats: Default::default(),
         }
     );
 }

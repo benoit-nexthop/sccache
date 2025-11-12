@@ -470,6 +470,12 @@ thread_local! {
 /// requests a shutdown.
 pub fn start_server(config: &Config, addr: &crate::net::SocketAddr) -> Result<()> {
     info!("start_server: {addr}");
+
+    // Initialize translation unit statistics recorder if enabled
+    if let Err(e) = crate::tu_stats::init_recorder(&config.translation_unit_stats) {
+        warn!("Failed to initialize TU stats recorder: {}", e);
+    }
+
     let panic_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
         PANIC_LOCATION.with(|l| {

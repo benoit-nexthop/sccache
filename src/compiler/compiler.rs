@@ -612,7 +612,10 @@ where
                         .await;
                 }
 
-                let (cacheable, dist_type, compiler_result) = dist_or_local_compile(
+                // Extract TU stats context before compilation consumes it
+                let tu_stats_ctx = compilation.tu_stats_context();
+
+                let (cacheable, dist_type, retry_count, compiler_result) = dist_or_local_compile(
                     service,
                     dist_client,
                     creator,
@@ -623,6 +626,23 @@ where
                 )
                 .await?;
                 let duration_compilation = start.elapsed();
+
+                // Record TU stats if we have the context
+                if let Some((input_file, preprocessed_size, num_includes, preprocess_duration)) = tu_stats_ctx {
+                    let is_distributed = matches!(dist_type, DistType::Ok(_));
+                    let stats = crate::tu_stats::TranslationUnitStats {
+                        input_file,
+                        preprocessed_size,
+                        num_includes,
+                        preprocess_duration,
+                        compile_duration: duration_compilation,
+                        dist_retry_count: retry_count,
+                        is_distributed,
+                        timestamp: std::time::SystemTime::now(),
+                    };
+                    crate::tu_stats::record_stats(stats);
+                }
+
                 if !compiler_result.status.success() {
                     debug!(
                         "[{}]: Compiled in {}, but failed, not storing in cache",
@@ -722,7 +742,7 @@ async fn dist_or_local_compile<T>(
     compilation: Box<dyn Compilation<T>>,
     _weak_toolchain_key: String,
     out_pretty: String,
-) -> Result<(Cacheable, DistType, process::Output)>
+) -> Result<(Cacheable, DistType, u32, process::Output)>
 where
     T: CommandCreatorSync,
 {
@@ -735,7 +755,7 @@ where
     compile_cmd
         .execute(&service, &creator)
         .await
-        .map(move |o| (cacheable, DistType::NoDist, o))
+        .map(move |o| (cacheable, DistType::NoDist, 0, o))
 }
 
 #[cfg(feature = "dist-client")]
@@ -747,7 +767,7 @@ async fn dist_or_local_compile<T>(
     compilation: Box<dyn Compilation<T>>,
     weak_toolchain_key: String,
     out_pretty: String,
-) -> Result<(Cacheable, DistType, process::Output)>
+) -> Result<(Cacheable, DistType, u32, process::Output)>
 where
     T: CommandCreatorSync,
 {
@@ -774,7 +794,7 @@ where
             return compile_cmd
                 .execute(service, &creator)
                 .await
-                .map(move |o| (cacheable, DistType::NoDist, o));
+                .map(move |o| (cacheable, DistType::NoDist, 0, o));
         }
     };
 
@@ -944,7 +964,7 @@ where
                 .handle_outputs(&path_transformer, &output_paths, &extra_inputs)
                 .with_context(|| "failed to rewrite outputs from compile")
         );
-        Ok((DistType::Ok(server_id), jc.output.into()))
+        Ok((DistType::Ok(server_id), retry_count, jc.output.into()))
     };
 
     use futures::TryFutureExt;
@@ -982,10 +1002,10 @@ where
                 compile_cmd
                     .execute(service, &creator)
                     .await
-                    .map(|o| (DistType::Error, o))
+                    .map(|o| (DistType::Error, 0, o))
             }
         })
-        .map_ok(move |(dt, o)| (cacheable, dt, o))
+        .map_ok(move |(dt, rc, o)| (cacheable, dt, rc, o))
         .await
 }
 
@@ -1028,6 +1048,16 @@ where
     /// Each item is a descriptive (and unique) name of the output paired with
     /// the path where it'll show up.
     fn outputs<'a>(&'a self) -> Box<dyn Iterator<Item = FileObjectSource> + 'a>;
+
+    /// Get the input file path for this compilation (for TU stats)
+    fn input_file(&self) -> Option<PathBuf> {
+        None
+    }
+
+    /// Get the TU stats context for this compilation (for TU stats)
+    fn tu_stats_context(&self) -> Option<(PathBuf, usize, usize, Duration)> {
+        None
+    }
 }
 
 #[cfg(feature = "dist-client")]
