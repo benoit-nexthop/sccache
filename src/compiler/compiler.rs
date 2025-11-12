@@ -628,7 +628,8 @@ where
                 let duration_compilation = start.elapsed();
 
                 // Record TU stats if we have the context
-                if let Some((input_file, preprocessed_size, num_includes, preprocess_duration)) = tu_stats_ctx {
+                #[cfg(feature = "translation-unit-stats")]
+                if let Some((input_file, preprocessed_size, num_includes, preprocess_duration, top_includes_by_count, top_includes_by_size)) = tu_stats_ctx {
                     let is_distributed = matches!(dist_type, DistType::Ok(_));
                     let stats = crate::tu_stats::TranslationUnitStats {
                         input_file,
@@ -638,6 +639,8 @@ where
                         compile_duration: duration_compilation,
                         dist_retry_count: retry_count,
                         is_distributed,
+                        top_includes_by_count,
+                        top_includes_by_size,
                         timestamp: std::time::SystemTime::now(),
                     };
                     crate::tu_stats::record_stats(stats);
@@ -829,6 +832,8 @@ where
             tc_archive = Some(archive_path);
         }
 
+        let mut retry_count = 0u32;
+
         let job_alloc = loop {
             debug!("[{}]: Requesting allocation", out_pretty);
             let jares = dist_client.do_alloc_job(dist_toolchain.clone()).await?;
@@ -866,10 +871,11 @@ where
                     // retry_on_busy or remote_only both enable retry behavior
                     if dist_client.retry_on_busy() || dist_client.remote_only() {
                         // Retry with random backoff
+                        retry_count += 1;
                         let sleep_millis = rand::thread_rng().gen_range(1000..=10000);
-                        info!(
-                            "[{}]: Failed to allocate job: {}. Retrying in {} ms...",
-                            out_pretty, msg, sleep_millis
+                        debug!(
+                            "[{}]: Failed to allocate job: {}. Retrying ({}) in {} ms...",
+                            out_pretty, msg, retry_count, sleep_millis
                         );
                         tokio::time::sleep(Duration::from_millis(sleep_millis)).await;
                         // Continue the loop to retry
@@ -1055,7 +1061,7 @@ where
     }
 
     /// Get the TU stats context for this compilation (for TU stats)
-    fn tu_stats_context(&self) -> Option<(PathBuf, usize, usize, Duration)> {
+    fn tu_stats_context(&self) -> Option<(PathBuf, usize, usize, Duration, Vec<crate::tu_stats::IncludeStats>, Vec<crate::tu_stats::IncludeStats>)> {
         None
     }
 }

@@ -137,6 +137,8 @@ struct TuStatsContext {
     preprocessed_size: usize,
     num_includes: usize,
     preprocess_duration: std::time::Duration,
+    top_includes_by_count: Vec<crate::tu_stats::IncludeStats>,
+    top_includes_by_size: Vec<crate::tu_stats::IncludeStats>,
 }
 
 /// A generic implementation of the `Compilation` trait for C/C++ compilers.
@@ -662,10 +664,19 @@ where
         );
 
         // Collect translation unit statistics context (will be recorded later if enabled)
+        #[cfg(feature = "translation-unit-stats")]
+        let (top_includes_by_count, top_includes_by_size) =
+            analyze_include_contributions(&preprocessor_result.stdout, &cwd);
+
+        #[cfg(not(feature = "translation-unit-stats"))]
+        let (top_includes_by_count, top_includes_by_size) = (Vec::new(), Vec::new());
+
         let tu_stats_context = Some(TuStatsContext {
             preprocessed_size: preprocessor_result.stdout.len(),
             num_includes,
             preprocess_duration,
+            top_includes_by_count,
+            top_includes_by_size,
         });
 
         Ok(HashResult {
@@ -706,6 +717,129 @@ const PRAGMA_GCC_PCH_PREPROCESS: &[u8] = b"pragma GCC pch_preprocess";
 const HASH_31_COMMAND_LINE_NEWLINE: &[u8] = b"# 31 \"<command-line>\"\n";
 const HASH_32_COMMAND_LINE_2_NEWLINE: &[u8] = b"# 32 \"<command-line>\" 2\n";
 const INCBIN_DIRECTIVE: &[u8] = b".incbin";
+
+/// Analyze preprocessed output to extract include statistics
+#[cfg(feature = "translation-unit-stats")]
+fn analyze_include_contributions(
+    preprocessed_output: &[u8],
+    cwd: &Path,
+) -> (Vec<crate::tu_stats::IncludeStats>, Vec<crate::tu_stats::IncludeStats>) {
+    use std::collections::HashMap;
+
+    // Track each include file's contribution
+    // Map from path prefix -> (count, total lines)
+    let mut prefix_stats: HashMap<String, (usize, usize)> = HashMap::new();
+
+    let mut current_file: Option<String> = None;
+    let mut current_file_lines = 0;
+
+    for line in preprocessed_output.split(|&b| b == b'\n') {
+        // Check if this is a preprocessor line marker
+        if line.starts_with(b"# ") && line.len() > 3 {
+            // Try to parse: # <line_number> "<file_path>" [flags]
+            let mut parts = line[2..].splitn(2, |&b| b == b' ');
+            if let (Some(line_num), Some(rest)) = (parts.next(), parts.next()) {
+                // Check if line_num is a number
+                if line_num.iter().all(|&b| b >= b'0' && b <= b'9') {
+                    // Extract the file path between quotes
+                    if let Some(quote_start) = rest.iter().position(|&b| b == b'"') {
+                        if let Some(quote_end) = rest[quote_start + 1..].iter().position(|&b| b == b'"') {
+                            let file_path = &rest[quote_start + 1..quote_start + 1 + quote_end];
+
+                            // Record the previous file's contribution
+                            if let Some(prev_file) = current_file.take() {
+                                if current_file_lines > 0 {
+                                    let prefix = extract_path_prefix(&prev_file, cwd);
+                                    let entry = prefix_stats.entry(prefix).or_insert((0, 0));
+                                    entry.0 += 1; // count
+                                    entry.1 += current_file_lines; // lines
+                                }
+                            }
+
+                            // Start tracking the new file
+                            if let Ok(path_str) = std::str::from_utf8(file_path) {
+                                // Skip built-in and command-line pseudo-files
+                                if !path_str.starts_with('<') {
+                                    current_file = Some(path_str.to_string());
+                                    current_file_lines = 0;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } else if current_file.is_some() {
+            // Count non-preprocessor lines for the current file
+            current_file_lines += 1;
+        }
+    }
+
+    // Record the last file's contribution
+    if let Some(prev_file) = current_file {
+        if current_file_lines > 0 {
+            let prefix = extract_path_prefix(&prev_file, cwd);
+            let entry = prefix_stats.entry(prefix).or_insert((0, 0));
+            entry.0 += 1;
+            entry.1 += current_file_lines;
+        }
+    }
+
+    // Convert to IncludeStats and sort
+    let mut stats: Vec<crate::tu_stats::IncludeStats> = prefix_stats
+        .into_iter()
+        .map(|(path_prefix, (count, lines))| crate::tu_stats::IncludeStats {
+            path_prefix,
+            count,
+            lines,
+        })
+        .collect();
+
+    // Sort by count (descending) and take top 10
+    let mut by_count = stats.clone();
+    by_count.sort_by(|a, b| b.count.cmp(&a.count));
+    by_count.truncate(10);
+
+    // Sort by lines (descending) and take top 10
+    stats.sort_by(|a, b| b.lines.cmp(&a.lines));
+    stats.truncate(10);
+
+    (by_count, stats)
+}
+
+/// Extract a meaningful path prefix from an absolute path
+/// Returns the first 2-3 path components after finding a likely project root
+#[cfg(feature = "translation-unit-stats")]
+fn extract_path_prefix(file_path: &str, cwd: &Path) -> String {
+    use std::path::Path;
+
+    let path = Path::new(file_path);
+
+    // Try to make it relative to cwd if possible
+    let relative_path = if let Ok(rel) = path.strip_prefix(cwd) {
+        rel
+    } else {
+        path
+    };
+
+    // Get the first 2-3 components
+    let components: Vec<_> = relative_path
+        .components()
+        .filter_map(|c| {
+            if let std::path::Component::Normal(s) = c {
+                s.to_str()
+            } else {
+                None
+            }
+        })
+        .take(3)
+        .collect();
+
+    if components.is_empty() {
+        file_path.to_string()
+    } else {
+        components.join("/")
+    }
+}
 
 /// Remember the include files in the preprocessor output if it can be cached.
 /// Returns `false` if preprocessor cache mode should be disabled.
@@ -1258,7 +1392,7 @@ impl<T: CommandCreatorSync, I: CCompilerImpl> Compilation<T> for CCompilation<I>
         )
     }
 
-    fn tu_stats_context(&self) -> Option<(PathBuf, usize, usize, std::time::Duration)> {
+    fn tu_stats_context(&self) -> Option<(PathBuf, usize, usize, std::time::Duration, Vec<crate::tu_stats::IncludeStats>, Vec<crate::tu_stats::IncludeStats>)> {
         self.tu_stats_context.as_ref().map(|ctx| {
             let input_file = self.cwd.join(&self.parsed_args.input);
             (
@@ -1266,6 +1400,8 @@ impl<T: CommandCreatorSync, I: CCompilerImpl> Compilation<T> for CCompilation<I>
                 ctx.preprocessed_size,
                 ctx.num_includes,
                 ctx.preprocess_duration,
+                ctx.top_includes_by_count.clone(),
+                ctx.top_includes_by_size.clone(),
             )
         })
     }

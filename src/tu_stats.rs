@@ -21,6 +21,17 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
 
+/// Statistics about include path contributions
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IncludeStats {
+    /// Path prefix (e.g., "fboss/fsdb/tests" or "external/folly/io")
+    pub path_prefix: String,
+    /// Number of files included from this prefix
+    pub count: usize,
+    /// Total lines of preprocessed output contributed by files from this prefix
+    pub lines: usize,
+}
+
 /// Statistics about a translation unit compilation
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TranslationUnitStats {
@@ -38,6 +49,10 @@ pub struct TranslationUnitStats {
     pub dist_retry_count: u32,
     /// Whether this was a distributed compilation
     pub is_distributed: bool,
+    /// Top 10 include path prefixes by frequency
+    pub top_includes_by_count: Vec<IncludeStats>,
+    /// Top 10 include path prefixes by size contribution
+    pub top_includes_by_size: Vec<IncludeStats>,
     /// Timestamp when the compilation occurred
     pub timestamp: std::time::SystemTime,
 }
@@ -185,8 +200,10 @@ pub fn query_stats(stats_file: Option<&Path>) -> Result<Vec<TranslationUnitStats
 pub fn export_to_csv(stats: &[TranslationUnitStats]) -> String {
     let mut csv = String::new();
 
-    // Header
-    csv.push_str("timestamp,input_file,preprocessed_size,num_includes,preprocess_duration_ms,compile_duration_ms,dist_retry_count,is_distributed\n");
+    // Header - include top 3 by count and top 3 by size
+    csv.push_str("timestamp,input_file,preprocessed_size,num_includes,preprocess_duration_ms,compile_duration_ms,dist_retry_count,is_distributed,");
+    csv.push_str("top1_by_count,top1_count,top1_lines,top2_by_count,top2_count,top2_lines,top3_by_count,top3_count,top3_lines,");
+    csv.push_str("top1_by_size,top1_lines,top1_count,top2_by_size,top2_lines,top2_count,top3_by_size,top3_lines,top3_count\n");
 
     // Data rows
     for stat in stats {
@@ -196,7 +213,7 @@ pub fn export_to_csv(stats: &[TranslationUnitStats]) -> String {
             .as_secs();
 
         csv.push_str(&format!(
-            "{},{},{},{},{},{},{},{}\n",
+            "{},{},{},{},{},{},{},{}",
             timestamp,
             stat.input_file.display(),
             stat.preprocessed_size,
@@ -206,6 +223,26 @@ pub fn export_to_csv(stats: &[TranslationUnitStats]) -> String {
             stat.dist_retry_count,
             if stat.is_distributed { "true" } else { "false" }
         ));
+
+        // Add top 3 by count
+        for i in 0..3 {
+            if let Some(inc) = stat.top_includes_by_count.get(i) {
+                csv.push_str(&format!(",{},{},{}", inc.path_prefix, inc.count, inc.lines));
+            } else {
+                csv.push_str(",,,");
+            }
+        }
+
+        // Add top 3 by size
+        for i in 0..3 {
+            if let Some(inc) = stat.top_includes_by_size.get(i) {
+                csv.push_str(&format!(",{},{},{}", inc.path_prefix, inc.lines, inc.count));
+            } else {
+                csv.push_str(",,,");
+            }
+        }
+
+        csv.push('\n');
     }
 
     csv
@@ -232,6 +269,23 @@ pub fn print_stats(stats: &[TranslationUnitStats]) {
         if stat.dist_retry_count > 0 {
             println!("  Retry count:       {}", stat.dist_retry_count);
         }
+
+        // Show top includes by count
+        if !stat.top_includes_by_count.is_empty() {
+            println!("  Top includes by count:");
+            for (j, inc) in stat.top_includes_by_count.iter().enumerate().take(5) {
+                println!("    {}: {} ({} files, {} lines)", j + 1, inc.path_prefix, inc.count, inc.lines);
+            }
+        }
+
+        // Show top includes by size
+        if !stat.top_includes_by_size.is_empty() {
+            println!("  Top includes by size:");
+            for (j, inc) in stat.top_includes_by_size.iter().enumerate().take(5) {
+                println!("    {}: {} ({} lines, {} files)", j + 1, inc.path_prefix, inc.lines, inc.count);
+            }
+        }
+
         println!("  Timestamp:         {:?}", stat.timestamp);
         println!();
     }
