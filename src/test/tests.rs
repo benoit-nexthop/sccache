@@ -207,6 +207,7 @@ fn test_server_unsupported_compiler() {
         vec![],
         &mut stdout,
         &mut stderr,
+        false, // fail_on_dist_error
     );
     match res {
         Ok(_) => panic!("do_compile should have failed!"),
@@ -278,7 +279,8 @@ fn test_server_compile() {
             path,
             vec![],
             &mut stdout,
-            &mut stderr
+            &mut stderr,
+            false, // fail_on_dist_error
         )
         .unwrap()
     );

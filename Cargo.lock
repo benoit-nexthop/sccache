@@ -2905,7 +2905,7 @@ dependencies = [
 
 [[package]]
 name = "sccache"
-version = "0.12.0-tu-stats"
+version = "0.12.0-tu-stats-nh2"
 dependencies = [
  "anyhow",
  "ar",

@@ -514,6 +514,7 @@ fn handle_compile_response<T>(
     cwd: &Path,
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
+    fail_on_dist_error: bool,
 ) -> Result<i32>
 where
     T: CommandCreatorSync,
@@ -530,18 +531,33 @@ where
                 Err(e) => {
                     match e.downcast_ref::<io::Error>() {
                         Some(io_e) if io_e.kind() == io::ErrorKind::UnexpectedEof => {
-                            eprintln!(
-                                "sccache: warning: The server looks like it shut down \
-                                 unexpectedly, compiling locally instead"
-                            );
+                            if fail_on_dist_error {
+                                bail!(
+                                    "sccache: The server shut down unexpectedly. \
+                                     Failing build as requested by fail_on_dist_error=true"
+                                );
+                            } else {
+                                eprintln!(
+                                    "sccache: warning: The server looks like it shut down \
+                                     unexpectedly, compiling locally instead"
+                                );
+                            }
                         }
                         _ => {
                             //TODO: something better here?
                             if ignore_all_server_io_errors() {
-                                eprintln!(
-                                    "sccache: warning: error reading compile response from server \
-                                     compiling locally instead"
-                                );
+                                if fail_on_dist_error {
+                                    bail!(
+                                        "sccache: Error reading compile response from server. \
+                                         Failing build as requested by fail_on_dist_error=true: {:#}",
+                                        e
+                                    );
+                                } else {
+                                    eprintln!(
+                                        "sccache: warning: error reading compile response from server \
+                                         compiling locally instead"
+                                    );
+                                }
                             } else {
                                 return Err(e)
                                     .context("error reading compile response from server");
@@ -600,6 +616,7 @@ pub fn do_compile<T>(
     env_vars: Vec<(OsString, OsString)>,
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
+    fail_on_dist_error: bool,
 ) -> Result<i32>
 where
     T: CommandCreatorSync,
@@ -608,7 +625,7 @@ where
     let exe_path = which_in(exe, path, cwd)?;
     let res = request_compile(&mut conn, &exe_path, &cmdline, cwd, env_vars)?;
     handle_compile_response(
-        creator, runtime, &mut conn, res, &exe_path, cmdline, cwd, stdout, stderr,
+        creator, runtime, &mut conn, res, &exe_path, cmdline, cwd, stdout, stderr, fail_on_dist_error,
     )
 }
 
@@ -819,6 +836,7 @@ pub fn run_command(cmd: Command) -> Result<i32> {
                 env_vars,
                 &mut io::stdout(),
                 &mut io::stderr(),
+                config.dist.fail_on_dist_error,
             );
             return res.context("failed to execute compile");
         }
