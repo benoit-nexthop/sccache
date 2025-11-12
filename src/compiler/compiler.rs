@@ -809,6 +809,9 @@ where
             tc_archive = Some(archive_path);
         }
 
+        let max_retries = dist_client.retry_on_busy();
+        let mut retry_count = 0u32;
+
         let job_alloc = loop {
             debug!("[{}]: Requesting allocation", out_pretty);
             let jares = dist_client.do_alloc_job(dist_toolchain.clone()).await?;
@@ -843,18 +846,19 @@ where
                 } => break job_alloc,
                 dist::AllocJobResult::Fail { msg } => {
                     // Server is busy - check config to decide whether to retry or fail
-                    if dist_client.retry_on_busy() {
+                    if retry_count < max_retries {
                         // Retry with random backoff
+                        retry_count += 1;
                         let sleep_millis = rand::thread_rng().gen_range(1000..=10000);
                         debug!(
-                            "[{}]: Failed to allocate job: {}. Retrying in {} ms...",
-                            out_pretty, msg, sleep_millis
+                            "[{}]: Failed to allocate job: {}. Retrying ({}/{}) in {} ms...",
+                            out_pretty, msg, retry_count, max_retries, sleep_millis
                         );
                         tokio::time::sleep(Duration::from_millis(sleep_millis)).await;
                         // Continue the loop to retry
                     } else {
-                        // Fail immediately to trigger local fallback
-                        bail!("Server busy: {}", msg);
+                        // Exhausted retries, fail to trigger local fallback
+                        bail!("Server busy after {} attempts: {}", retry_count, msg);
                     }
                 }
             }
@@ -3141,8 +3145,8 @@ mod test_dist {
         fn rewrite_includes_only(&self) -> bool {
             false
         }
-        fn retry_on_busy(&self) -> bool {
-            false
+        fn retry_on_busy(&self) -> u32 {
+            0
         }
         fn fail_on_dist_error(&self) -> bool {
             false
@@ -3201,8 +3205,8 @@ mod test_dist {
         fn rewrite_includes_only(&self) -> bool {
             false
         }
-        fn retry_on_busy(&self) -> bool {
-            false
+        fn retry_on_busy(&self) -> u32 {
+            0
         }
         fn fail_on_dist_error(&self) -> bool {
             false
@@ -3278,8 +3282,8 @@ mod test_dist {
         fn rewrite_includes_only(&self) -> bool {
             false
         }
-        fn retry_on_busy(&self) -> bool {
-            false
+        fn retry_on_busy(&self) -> u32 {
+            0
         }
         fn fail_on_dist_error(&self) -> bool {
             false
@@ -3363,8 +3367,8 @@ mod test_dist {
         fn rewrite_includes_only(&self) -> bool {
             false
         }
-        fn retry_on_busy(&self) -> bool {
-            false
+        fn retry_on_busy(&self) -> u32 {
+            0
         }
         fn fail_on_dist_error(&self) -> bool {
             false
@@ -3468,8 +3472,8 @@ mod test_dist {
         fn rewrite_includes_only(&self) -> bool {
             false
         }
-        fn retry_on_busy(&self) -> bool {
-            false
+        fn retry_on_busy(&self) -> u32 {
+            0
         }
         fn fail_on_dist_error(&self) -> bool {
             false

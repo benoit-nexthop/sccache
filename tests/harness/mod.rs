@@ -188,7 +188,7 @@ pub fn sccache_client_cfg(
             toolchains: vec![],
             toolchain_cache_size: TC_CACHE_SIZE,
             rewrite_includes_only: false, // TODO
-            retry_on_busy: false,
+            retry_on_busy: 0,
             fail_on_dist_error: false,
         },
         server_startup_timeout_ms: None,

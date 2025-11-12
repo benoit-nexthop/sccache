@@ -157,7 +157,7 @@ pub struct DistClientConfig {
     toolchain_cache_size: u64,
     toolchains: Vec<config::DistToolchainConfig>,
     rewrite_includes_only: bool,
-    retry_on_busy: bool,
+    retry_on_busy: u32,
     fail_on_dist_error: bool,
 }
 
@@ -982,7 +982,7 @@ where
                     toolchain_cache_size: 0,
                     toolchains: vec![],
                     rewrite_includes_only: false,
-                    retry_on_busy: false,
+                    retry_on_busy: 0,
                     fail_on_dist_error: false,
                 }),
                 dist_client,

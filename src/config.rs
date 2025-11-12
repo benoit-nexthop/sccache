@@ -111,6 +111,29 @@ where
     deserializer.deserialize_any(StringOrU64Visitor)
 }
 
+// Custom deserializer for retry_on_busy that handles backward compatibility
+// Accepts either a boolean (false -> 0, true -> 10) or a u32
+fn deserialize_retry_on_busy<'de, D>(deserializer: D) -> StdResult<u32, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    use serde::de::Error;
+    use serde_json::Value;
+
+    let value = Value::deserialize(deserializer)?;
+    match value {
+        Value::Bool(false) => Ok(0),  // backward compatibility: false means no retries (immediate fallback)
+        Value::Bool(true) => Ok(10),  // backward compatibility: true means 10 retries
+        Value::Number(n) => n
+            .as_u64()
+            .and_then(|v| u32::try_from(v).ok())
+            .ok_or_else(|| Error::custom("retry_on_busy must be a valid u32")),
+        _ => Err(Error::custom(
+            "retry_on_busy must be a boolean or a number",
+        )),
+    }
+}
+
 pub fn parse_size(val: &str) -> Option<u64> {
     let multiplier = match val.chars().last().map(|v| v.to_ascii_uppercase()) {
         Some('K') => 1024,
@@ -562,9 +585,10 @@ pub struct DistConfig {
     #[serde(deserialize_with = "deserialize_size_from_str")]
     pub toolchain_cache_size: u64,
     pub rewrite_includes_only: bool,
-    /// When true, retry job allocation when the server is busy instead of falling back to local compilation.
-    /// When false (default), fall back to local compilation immediately when the server is busy.
-    pub retry_on_busy: bool,
+    /// Number of times to retry job allocation when the server is busy before falling back to local compilation.
+    /// 0 (default) means fall back to local compilation immediately when the server is busy.
+    #[serde(deserialize_with = "deserialize_retry_on_busy")]
+    pub retry_on_busy: u32,
     pub fail_on_dist_error: bool,
 }
 
@@ -577,7 +601,7 @@ impl Default for DistConfig {
             toolchains: Default::default(),
             toolchain_cache_size: default_toolchain_cache_size(),
             rewrite_includes_only: false,
-            retry_on_busy: false,
+            retry_on_busy: 0,
             fail_on_dist_error: false,
         }
     }
@@ -1665,7 +1689,7 @@ no_credentials = true
                 toolchains: vec![],
                 toolchain_cache_size: 5368709120,
                 rewrite_includes_only: false,
-                retry_on_busy: false,
+                retry_on_busy: 0,
                 fail_on_dist_error: false,
             },
             server_startup_timeout_ms: Some(10000),
@@ -1763,4 +1787,39 @@ size = "7g"
             server_startup_timeout_ms: None,
         }
     );
+}
+
+#[test]
+fn retry_on_busy_backward_compatibility() {
+    // Test that boolean false is converted to 0 (no retries, immediate fallback)
+    let config_str = r#"
+    [dist]
+    retry_on_busy = false
+    "#;
+    let config: FileConfig = toml::from_str(config_str).expect("Failed to parse config");
+    assert_eq!(config.dist.retry_on_busy, 0);
+
+    // Test that boolean true is converted to 10 retries
+    let config_str = r#"
+    [dist]
+    retry_on_busy = true
+    "#;
+    let config: FileConfig = toml::from_str(config_str).expect("Failed to parse config");
+    assert_eq!(config.dist.retry_on_busy, 10);
+
+    // Test that numeric values work
+    let config_str = r#"
+    [dist]
+    retry_on_busy = 5
+    "#;
+    let config: FileConfig = toml::from_str(config_str).expect("Failed to parse config");
+    assert_eq!(config.dist.retry_on_busy, 5);
+
+    // Test that 0 works
+    let config_str = r#"
+    [dist]
+    retry_on_busy = 0
+    "#;
+    let config: FileConfig = toml::from_str(config_str).expect("Failed to parse config");
+    assert_eq!(config.dist.retry_on_busy, 0);
 }
