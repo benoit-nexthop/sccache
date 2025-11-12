@@ -44,7 +44,37 @@ The statistics are stored using [fjall](https://github.com/fjall-rs/fjall), a lo
 
 ## Querying the Statistics
 
-The statistics database can be queried programmatically using the fjall library. Here's an example:
+### Using the Built-in Command
+
+The easiest way to query statistics is using the built-in `--tu-stats` command:
+
+```bash
+# Show statistics in human-readable format
+sccache --tu-stats
+
+# Export statistics to CSV format
+sccache --tu-stats --tu-stats-csv > stats.csv
+
+# Query a specific database file
+sccache --tu-stats --tu-stats-file /path/to/tu_stats.db
+
+# Export specific database to CSV
+sccache --tu-stats --tu-stats-csv --tu-stats-file /path/to/tu_stats.db > stats.csv
+```
+
+The CSV format includes the following columns:
+- `timestamp` - Unix timestamp when the compilation occurred
+- `input_file` - Path to the source file
+- `preprocessed_size` - Size of the preprocessed output in bytes
+- `num_includes` - Number of files included
+- `preprocess_duration_ms` - Preprocessing time in milliseconds
+- `compile_duration_ms` - Compilation time in milliseconds
+- `dist_retry_count` - Number of retry attempts for distributed compilation
+- `is_distributed` - Whether the compilation was distributed (true/false)
+
+### Programmatic Access
+
+You can also query the statistics programmatically using the fjall library:
 
 ```rust
 use fjall::{Config, Keyspace};
@@ -67,11 +97,11 @@ struct TranslationUnitStats {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let keyspace = Config::new("/path/to/tu_stats.db").open()?;
     let partition = keyspace.open_partition("tu_stats", Default::default())?;
-    
+
     // Iterate over all statistics
     for item in partition.iter() {
         let (key, value) = item?;
-        let stats: TranslationUnitStats = bincode::deserialize(&value)?;
+        let stats: TranslationUnitStats = serde_json::from_slice(&value)?;
         println!("{:?}: {} bytes, {} includes, {:?} preprocess, {:?} compile",
             stats.input_file,
             stats.preprocessed_size,
@@ -80,10 +110,42 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             stats.compile_duration
         );
     }
-    
+
     Ok(())
 }
 ```
+
+Note: The statistics are stored as JSON (using `serde_json`), not bincode.
+
+## Analyzing Statistics with Standard Tools
+
+Once you've exported the statistics to CSV, you can analyze them using standard Linux tools:
+
+```bash
+# Export to CSV
+sccache --tu-stats --tu-stats-csv > stats.csv
+
+# Find the 10 largest preprocessed files
+sort -t, -k3 -nr stats.csv | head -11
+
+# Find files with the most includes
+sort -t, -k4 -nr stats.csv | head -11
+
+# Find the slowest compilations
+sort -t, -k6 -nr stats.csv | head -11
+
+# Count distributed vs local compilations
+echo "Distributed: $(grep -c ',true$' stats.csv)"
+echo "Local: $(grep -c ',false$' stats.csv)"
+
+# Average preprocessing time (requires awk)
+awk -F, 'NR>1 {sum+=$5; count++} END {print "Average preprocess time:", sum/count, "ms"}' stats.csv
+
+# Average compilation time
+awk -F, 'NR>1 {sum+=$6; count++} END {print "Average compile time:", sum/count, "ms"}' stats.csv
+```
+
+You can also import the CSV into spreadsheet applications (Excel, LibreOffice Calc, Google Sheets) or data analysis tools (Python pandas, R, etc.) for more sophisticated analysis.
 
 ## Use Cases
 

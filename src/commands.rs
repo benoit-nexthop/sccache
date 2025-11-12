@@ -856,6 +856,27 @@ pub fn run_command(cmd: Command) -> Result<i32> {
             );
             return res.context("failed to execute compile");
         }
+        Command::TuStats { stats_file, csv } => {
+            trace!("Command::TuStats");
+            #[cfg(feature = "translation-unit-stats")]
+            {
+                let stats = crate::tu_stats::query_stats(stats_file.as_deref())
+                    .context("failed to query translation unit statistics")?;
+
+                if csv {
+                    print!("{}", crate::tu_stats::export_to_csv(&stats));
+                } else {
+                    crate::tu_stats::print_stats(&stats);
+                }
+            }
+            #[cfg(not(feature = "translation-unit-stats"))]
+            {
+                let _ = (stats_file, csv);
+                eprintln!("Translation unit statistics feature is not enabled.");
+                eprintln!("Please rebuild sccache with --features translation-unit-stats");
+                return Ok(1);
+            }
+        }
     }
 
     Ok(0)

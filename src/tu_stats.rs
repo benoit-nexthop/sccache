@@ -169,3 +169,71 @@ pub fn record_stats(stats: TranslationUnitStats) {
     }
 }
 
+/// Query all translation unit statistics from the database
+pub fn query_stats(stats_file: Option<&Path>) -> Result<Vec<TranslationUnitStats>> {
+    let db_path = if let Some(path) = stats_file {
+        path.to_path_buf()
+    } else {
+        crate::config::default_disk_cache_dir().join("tu_stats.db")
+    };
+
+    let storage = TuStatsStorage::new(&db_path)?;
+    storage.get_all()
+}
+
+/// Export statistics to CSV format
+pub fn export_to_csv(stats: &[TranslationUnitStats]) -> String {
+    let mut csv = String::new();
+
+    // Header
+    csv.push_str("timestamp,input_file,preprocessed_size,num_includes,preprocess_duration_ms,compile_duration_ms,dist_retry_count,is_distributed\n");
+
+    // Data rows
+    for stat in stats {
+        let timestamp = stat.timestamp
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        csv.push_str(&format!(
+            "{},{},{},{},{},{},{},{}\n",
+            timestamp,
+            stat.input_file.display(),
+            stat.preprocessed_size,
+            stat.num_includes,
+            stat.preprocess_duration.as_millis(),
+            stat.compile_duration.as_millis(),
+            stat.dist_retry_count,
+            if stat.is_distributed { "true" } else { "false" }
+        ));
+    }
+
+    csv
+}
+
+/// Print statistics in human-readable format
+pub fn print_stats(stats: &[TranslationUnitStats]) {
+    if stats.is_empty() {
+        println!("No translation unit statistics found.");
+        return;
+    }
+
+    println!("Translation Unit Statistics ({} entries):", stats.len());
+    println!();
+
+    for (i, stat) in stats.iter().enumerate() {
+        println!("Entry {}:", i + 1);
+        println!("  File:              {}", stat.input_file.display());
+        println!("  Preprocessed size: {} bytes", stat.preprocessed_size);
+        println!("  Includes:          {}", stat.num_includes);
+        println!("  Preprocess time:   {:?}", stat.preprocess_duration);
+        println!("  Compile time:      {:?}", stat.compile_duration);
+        println!("  Distributed:       {}", if stat.is_distributed { "yes" } else { "no" });
+        if stat.dist_retry_count > 0 {
+            println!("  Retry count:       {}", stat.dist_retry_count);
+        }
+        println!("  Timestamp:         {:?}", stat.timestamp);
+        println!();
+    }
+}
+
