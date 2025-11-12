@@ -71,6 +71,12 @@ The CSV format includes the following columns:
 - `compile_duration_ms` - Compilation time in milliseconds
 - `dist_retry_count` - Number of retry attempts for distributed compilation
 - `is_distributed` - Whether the compilation was distributed (true/false)
+- `top1_by_count`, `top1_count`, `top1_lines` - Top include path prefix by frequency (path, file count, line count)
+- `top2_by_count`, `top2_count`, `top2_lines` - Second most frequent include path prefix
+- `top3_by_count`, `top3_count`, `top3_lines` - Third most frequent include path prefix
+- `top1_by_size`, `top1_lines`, `top1_count` - Top include path prefix by size contribution (path, line count, file count)
+- `top2_by_size`, `top2_lines`, `top2_count` - Second largest include path prefix by size
+- `top3_by_size`, `top3_lines`, `top3_count` - Third largest include path prefix by size
 
 ### Programmatic Access
 
@@ -117,6 +123,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 Note: The statistics are stored as JSON (using `serde_json`), not bincode.
 
+## Understanding Include Statistics
+
+The statistics include detailed information about which parts of your codebase contribute most to translation unit size:
+
+### Top Includes by Count
+Shows which path prefixes have the most individual files included. For example, if you see:
+- `fboss/fsdb/tests` - 200 files
+- `external/folly/io` - 150 files
+
+This means 200 different header files from `fboss/fsdb/tests/` were included in the translation unit.
+
+### Top Includes by Size
+Shows which path prefixes contribute the most lines to the preprocessed output. For example:
+- `external/folly/io` - 50,000 lines
+- `fboss/fsdb/tests` - 30,000 lines
+
+This means headers from `external/folly/io/` contributed 50,000 lines of preprocessed code, even if there were fewer individual files.
+
+**Key insight:** A path prefix with high line count but low file count indicates large, heavyweight headers. A path prefix with high file count but low line count indicates many small headers.
+
 ## Analyzing Statistics with Standard Tools
 
 Once you've exported the statistics to CSV, you can analyze them using standard Linux tools:
@@ -143,6 +169,12 @@ awk -F, 'NR>1 {sum+=$5; count++} END {print "Average preprocess time:", sum/coun
 
 # Average compilation time
 awk -F, 'NR>1 {sum+=$6; count++} END {print "Average compile time:", sum/count, "ms"}' stats.csv
+
+# Find most common heavy hitters (top include paths by size)
+cut -d, -f19 stats.csv | tail -n +2 | sort | uniq -c | sort -rn | head -10
+
+# Find most common include path prefixes (by count)
+cut -d, -f10 stats.csv | tail -n +2 | sort | uniq -c | sort -rn | head -10
 ```
 
 You can also import the CSV into spreadsheet applications (Excel, LibreOffice Calc, Google Sheets) or data analysis tools (Python pandas, R, etc.) for more sophisticated analysis.

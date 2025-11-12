@@ -628,7 +628,8 @@ where
                 let duration_compilation = start.elapsed();
 
                 // Record TU stats if we have the context
-                if let Some((input_file, preprocessed_size, num_includes, preprocess_duration)) = tu_stats_ctx {
+                #[cfg(feature = "translation-unit-stats")]
+                if let Some((input_file, preprocessed_size, num_includes, preprocess_duration, top_includes_by_count, top_includes_by_size)) = tu_stats_ctx {
                     let is_distributed = matches!(dist_type, DistType::Ok(_));
                     let stats = crate::tu_stats::TranslationUnitStats {
                         input_file,
@@ -638,6 +639,8 @@ where
                         compile_duration: duration_compilation,
                         dist_retry_count: retry_count,
                         is_distributed,
+                        top_includes_by_count,
+                        top_includes_by_size,
                         timestamp: std::time::SystemTime::now(),
                     };
                     crate::tu_stats::record_stats(stats);
@@ -1055,7 +1058,7 @@ where
     }
 
     /// Get the TU stats context for this compilation (for TU stats)
-    fn tu_stats_context(&self) -> Option<(PathBuf, usize, usize, Duration)> {
+    fn tu_stats_context(&self) -> Option<(PathBuf, usize, usize, Duration, Vec<crate::tu_stats::IncludeStats>, Vec<crate::tu_stats::IncludeStats>)> {
         None
     }
 }
