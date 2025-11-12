@@ -562,6 +562,7 @@ pub struct DistConfig {
     #[serde(deserialize_with = "deserialize_size_from_str")]
     pub toolchain_cache_size: u64,
     pub rewrite_includes_only: bool,
+    pub fail_on_dist_error: bool,
 }
 
 impl Default for DistConfig {
@@ -573,6 +574,7 @@ impl Default for DistConfig {
             toolchains: Default::default(),
             toolchain_cache_size: default_toolchain_cache_size(),
             rewrite_includes_only: false,
+            fail_on_dist_error: false,
         }
     }
 }
@@ -622,6 +624,7 @@ pub fn try_read_config_file<T: DeserializeOwned>(path: &Path) -> Result<Option<T
 #[derive(Debug)]
 pub struct EnvConfig {
     cache: CacheConfigs,
+    fail_on_dist_error: Option<bool>,
 }
 
 fn key_prefix_from_env_var(env_var_name: &str) -> String {
@@ -947,7 +950,13 @@ fn config_from_env() -> Result<EnvConfig> {
         oss,
     };
 
-    Ok(EnvConfig { cache })
+    // ======= Distributed compilation =======
+    let fail_on_dist_error = bool_from_env_var("SCCACHE_DIST_ERROR_NO_FALLBACK")?;
+
+    Ok(EnvConfig {
+        cache,
+        fail_on_dist_error,
+    })
 }
 
 // The directories crate changed the location of `config_dir` on macos in version 3,
@@ -998,7 +1007,7 @@ impl Config {
 
         let FileConfig {
             cache,
-            dist,
+            mut dist,
             server_startup_timeout_ms,
         } = file_conf;
         conf_caches.merge(cache);
@@ -1006,8 +1015,16 @@ impl Config {
         let server_startup_timeout =
             server_startup_timeout_ms.map(std::time::Duration::from_millis);
 
-        let EnvConfig { cache } = env_conf;
+        let EnvConfig {
+            cache,
+            fail_on_dist_error,
+        } = env_conf;
         conf_caches.merge(cache);
+
+        // Override dist config with environment variable if set
+        if let Some(fail_on_dist_error) = fail_on_dist_error {
+            dist.fail_on_dist_error = fail_on_dist_error;
+        }
 
         let (caches, fallback_cache) = conf_caches.into_fallback();
         Self {
@@ -1288,6 +1305,7 @@ fn config_overrides() {
             }),
             ..Default::default()
         },
+        fail_on_dist_error: None,
     };
 
     let file_conf = FileConfig {
@@ -1643,6 +1661,7 @@ no_credentials = true
                 toolchains: vec![],
                 toolchain_cache_size: 5368709120,
                 rewrite_includes_only: false,
+                fail_on_dist_error: false,
             },
             server_startup_timeout_ms: Some(10000),
         }

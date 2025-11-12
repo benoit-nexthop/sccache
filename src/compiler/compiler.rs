@@ -757,6 +757,10 @@ where
         Some(ref client) => client.rewrite_includes_only(),
         _ => false,
     };
+    let fail_on_dist_error = match dist_client {
+        Some(ref client) => client.fail_on_dist_error(),
+        _ => false,
+    };
     let mut path_transformer = dist::PathTransformer::new();
     let (compile_cmd, dist_compile_cmd, cacheable) = compilation
         .generate_compile_commands(&mut path_transformer, rewrite_includes_only)
@@ -938,6 +942,14 @@ where
                  Increase `toolchain_cache_size` or decrease the toolchain archive size.",
                     local_executable2
                 ))
+            } else if fail_on_dist_error {
+                // `{:#}` prints the error and the causes in a single line.
+                let errmsg = format!("{:#}", e);
+                error!(
+                    "[{}]: Could not perform distributed compile, failing as requested: {}",
+                    out_pretty2, errmsg
+                );
+                Err(e).context("Distributed compilation failed")
             } else {
                 // `{:#}` prints the error and the causes in a single line.
                 let errmsg = format!("{:#}", e);
@@ -3112,6 +3124,9 @@ mod test_dist {
         fn rewrite_includes_only(&self) -> bool {
             false
         }
+        fn fail_on_dist_error(&self) -> bool {
+            false
+        }
         fn get_custom_toolchain(&self, _exe: &Path) -> Option<PathBuf> {
             None
         }
@@ -3164,6 +3179,9 @@ mod test_dist {
             Ok((self.tc.clone(), None))
         }
         fn rewrite_includes_only(&self) -> bool {
+            false
+        }
+        fn fail_on_dist_error(&self) -> bool {
             false
         }
         fn get_custom_toolchain(&self, _exe: &Path) -> Option<PathBuf> {
@@ -3235,6 +3253,9 @@ mod test_dist {
             Ok((self.tc.clone(), None))
         }
         fn rewrite_includes_only(&self) -> bool {
+            false
+        }
+        fn fail_on_dist_error(&self) -> bool {
             false
         }
         fn get_custom_toolchain(&self, _exe: &Path) -> Option<PathBuf> {
@@ -3314,6 +3335,9 @@ mod test_dist {
             ))
         }
         fn rewrite_includes_only(&self) -> bool {
+            false
+        }
+        fn fail_on_dist_error(&self) -> bool {
             false
         }
         fn get_custom_toolchain(&self, _exe: &Path) -> Option<PathBuf> {
@@ -3413,6 +3437,9 @@ mod test_dist {
             ))
         }
         fn rewrite_includes_only(&self) -> bool {
+            false
+        }
+        fn fail_on_dist_error(&self) -> bool {
             false
         }
         fn get_custom_toolchain(&self, _exe: &Path) -> Option<PathBuf> {

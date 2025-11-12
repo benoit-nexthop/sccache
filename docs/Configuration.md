@@ -14,6 +14,9 @@ toolchains = []
 # the maximum size of the toolchain cache in bytes
 toolchain_cache_size = 5368709120
 cache_dir = "/home/user/.cache/sccache-dist-client"
+# if true, errors during distributed compilation will cause the build to fail
+# instead of falling back to local compilation (default: false)
+fail_on_dist_error = false
 
 [dist.auth]
 type = "token"
@@ -147,6 +150,10 @@ Note that some env variables may need sccache server restart to take effect.
 * `SCCACHE_LOG_MILLIS` when set (to any value), enables millisecond precision timestamps in log output instead of the default second precision.
 * `SCCACHE_ERROR_LOG` path to a file where sccache will log errors
 * `SCCACHE_LOG` log level, accepting standard env_logger values, see [env_logger documentation](https://docs.rs/env_logger/latest/env_logger/#enabling-logging) for details
+
+### distributed compilation
+
+* `SCCACHE_DIST_ERROR_NO_FALLBACK` when set to `true`, errors during distributed compilation will cause the build to fail instead of falling back to local compilation. This can be useful in CI environments where you want to ensure distributed compilation is working correctly.
 
 ### cache configs
 
