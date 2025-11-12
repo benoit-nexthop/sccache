@@ -630,7 +630,10 @@ where
                 // Record TU stats if we have the context
                 #[cfg(feature = "translation-unit-stats")]
                 if let Some((input_file, preprocessed_size, num_includes, preprocess_duration, top_includes_by_count, top_includes_by_size)) = tu_stats_ctx {
-                    let is_distributed = matches!(dist_type, DistType::Ok(_));
+                    let (is_distributed, dist_server) = match dist_type {
+                        DistType::Ok(server_id) => (true, Some(server_id.addr().to_string())),
+                        _ => (false, None),
+                    };
                     let stats = crate::tu_stats::TranslationUnitStats {
                         input_file,
                         preprocessed_size,
@@ -639,6 +642,7 @@ where
                         compile_duration: duration_compilation,
                         dist_retry_count: retry_count,
                         is_distributed,
+                        dist_server,
                         top_includes_by_count,
                         top_includes_by_size,
                         timestamp: std::time::SystemTime::now(),

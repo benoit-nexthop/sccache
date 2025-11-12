@@ -12,6 +12,7 @@ For each compilation, sccache records:
 - **Preprocessing time**: How long it took to preprocess the file
 - **Compilation time**: How long it took to compile the file
 - **Distributed compilation**: Whether the compilation was distributed to a remote server
+- **Server**: The IP:port of the remote server used for distributed compilation (only present for distributed builds)
 - **Retry count**: For distributed compilations with `retry_on_busy` enabled, how many retry attempts were needed
 - **Timestamp**: When the compilation occurred
 
@@ -71,6 +72,7 @@ The CSV format includes the following columns:
 - `compile_duration_ms` - Compilation time in milliseconds
 - `dist_retry_count` - Number of retry attempts for distributed compilation
 - `is_distributed` - Whether the compilation was distributed (true/false)
+- `dist_server` - The IP:port of the remote server used (or "local" for local compilations)
 - `top1_by_count`, `top1_count`, `top1_lines` - Top include path prefix by frequency (path, file count, line count)
 - `top2_by_count`, `top2_count`, `top2_lines` - Second most frequent include path prefix
 - `top3_by_count`, `top3_count`, `top3_lines` - Third most frequent include path prefix
@@ -97,6 +99,7 @@ struct TranslationUnitStats {
     compile_duration: Duration,
     dist_retry_count: u32,
     is_distributed: bool,
+    dist_server: Option<String>,
     timestamp: SystemTime,
 }
 
@@ -108,12 +111,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for item in partition.iter() {
         let (key, value) = item?;
         let stats: TranslationUnitStats = serde_json::from_slice(&value)?;
-        println!("{:?}: {} bytes, {} includes, {:?} preprocess, {:?} compile",
+        let server_info = stats.dist_server.as_deref().unwrap_or("local");
+        println!("{:?}: {} bytes, {} includes, {:?} preprocess, {:?} compile, server: {}",
             stats.input_file,
             stats.preprocessed_size,
             stats.num_includes,
             stats.preprocess_duration,
-            stats.compile_duration
+            stats.compile_duration,
+            server_info
         );
     }
 
@@ -161,14 +166,24 @@ sort -t, -k4 -nr stats.csv | head -11
 sort -t, -k6 -nr stats.csv | head -11
 
 # Count distributed vs local compilations
-echo "Distributed: $(grep -c ',true$' stats.csv)"
-echo "Local: $(grep -c ',false$' stats.csv)"
+echo "Distributed: $(grep -c ',true,' stats.csv)"
+echo "Local: $(grep -c ',false,' stats.csv)"
 
 # Average preprocessing time (requires awk)
 awk -F, 'NR>1 {sum+=$5; count++} END {print "Average preprocess time:", sum/count, "ms"}' stats.csv
 
 # Average compilation time
 awk -F, 'NR>1 {sum+=$6; count++} END {print "Average compile time:", sum/count, "ms"}' stats.csv
+
+# Analyze distributed build performance by server
+# Show average compile time per server
+awk -F, 'NR>1 && $9=="true" {sum[$10]+=$6; count[$10]++} END {for (server in sum) print server, sum[server]/count[server], "ms avg,", count[server], "builds"}' stats.csv | sort -k2 -n
+
+# Find slow servers (servers with above-average compile times)
+awk -F, 'NR>1 && $9=="true" {sum[$10]+=$6; count[$10]++; total+=$6; total_count++} END {avg=total/total_count; for (server in sum) {server_avg=sum[server]/count[server]; if (server_avg > avg) print server, server_avg, "ms (", count[server], "builds) - SLOW"}}' stats.csv | sort -k2 -nr
+
+# Count builds per server
+awk -F, 'NR>1 && $9=="true" {count[$10]++} END {for (server in count) print server, count[server]}' stats.csv | sort -k2 -nr
 
 # Find most common heavy hitters (top include paths by size)
 cut -d, -f19 stats.csv | tail -n +2 | sort | uniq -c | sort -rn | head -10
@@ -186,8 +201,9 @@ This feature is useful for:
 - **Build performance analysis**: Identify which files take the longest to compile
 - **Include dependency analysis**: Find files with excessive `#include` directives
 - **Distributed compilation monitoring**: Track retry rates and distributed vs local compilation
+- **Server performance analysis**: Identify slow or problematic distributed build servers by comparing compile times across servers
 - **Build optimization**: Identify opportunities to reduce preprocessing overhead
-- **Capacity planning**: Understand compilation workload characteristics
+- **Capacity planning**: Understand compilation workload characteristics and server utilization
 
 ## Performance Impact
 

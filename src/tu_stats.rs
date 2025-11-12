@@ -49,6 +49,8 @@ pub struct TranslationUnitStats {
     pub dist_retry_count: u32,
     /// Whether this was a distributed compilation
     pub is_distributed: bool,
+    /// The IP:port of the remote server used for distributed compilation (None if local)
+    pub dist_server: Option<String>,
     /// Top 10 include path prefixes by frequency
     pub top_includes_by_count: Vec<IncludeStats>,
     /// Top 10 include path prefixes by size contribution
@@ -201,7 +203,7 @@ pub fn export_to_csv(stats: &[TranslationUnitStats]) -> String {
     let mut csv = String::new();
 
     // Header - include top 3 by count and top 3 by size
-    csv.push_str("timestamp,input_file,preprocessed_size,num_includes,preprocess_duration_ms,compile_duration_ms,dist_retry_count,is_distributed,");
+    csv.push_str("timestamp,input_file,preprocessed_size,num_includes,preprocess_duration_ms,compile_duration_ms,dist_retry_count,is_distributed,dist_server,");
     csv.push_str("top1_by_count,top1_count,top1_lines,top2_by_count,top2_count,top2_lines,top3_by_count,top3_count,top3_lines,");
     csv.push_str("top1_by_size,top1_lines,top1_count,top2_by_size,top2_lines,top2_count,top3_by_size,top3_lines,top3_count\n");
 
@@ -213,7 +215,7 @@ pub fn export_to_csv(stats: &[TranslationUnitStats]) -> String {
             .as_secs();
 
         csv.push_str(&format!(
-            "{},{},{},{},{},{},{},{}",
+            "{},{},{},{},{},{},{},{},{}",
             timestamp,
             stat.input_file.display(),
             stat.preprocessed_size,
@@ -221,7 +223,8 @@ pub fn export_to_csv(stats: &[TranslationUnitStats]) -> String {
             stat.preprocess_duration.as_millis(),
             stat.compile_duration.as_millis(),
             stat.dist_retry_count,
-            if stat.is_distributed { "true" } else { "false" }
+            if stat.is_distributed { "true" } else { "false" },
+            stat.dist_server.as_deref().unwrap_or("local")
         ));
 
         // Add top 3 by count
@@ -266,6 +269,9 @@ pub fn print_stats(stats: &[TranslationUnitStats]) {
         println!("  Preprocess time:   {:?}", stat.preprocess_duration);
         println!("  Compile time:      {:?}", stat.compile_duration);
         println!("  Distributed:       {}", if stat.is_distributed { "yes" } else { "no" });
+        if let Some(ref server) = stat.dist_server {
+            println!("  Server:            {}", server);
+        }
         if stat.dist_retry_count > 0 {
             println!("  Retry count:       {}", stat.dist_retry_count);
         }
