@@ -85,6 +85,13 @@ pub enum Command {
         env_vars: Vec<(OsString, OsString)>,
     },
     DebugPreprocessorCacheEntries,
+    /// Query translation unit statistics
+    TuStats {
+        /// Path to the stats database file (optional)
+        stats_file: Option<PathBuf>,
+        /// Export to CSV format
+        csv: bool,
+    },
 }
 
 fn flag_infer_long_and_short(name: &'static str) -> Arg {
@@ -162,6 +169,16 @@ fn get_clap_command() -> clap::Command {
                 .value_name("FMT")
                 .value_parser(clap::value_parser!(StatsFormat))
                 .default_value(StatsFormat::default().as_str()),
+            flag_infer_long("tu-stats")
+                .help("show translation unit statistics")
+                .action(ArgAction::SetTrue),
+            flag_infer_long("tu-stats-file")
+                .help("path to translation unit statistics database")
+                .value_name("PATH")
+                .value_parser(clap::value_parser!(PathBuf)),
+            flag_infer_long("tu-stats-csv")
+                .help("export translation unit statistics to CSV format")
+                .action(ArgAction::SetTrue),
             Arg::new("CMD")
                 .value_parser(clap::value_parser!(OsString))
                 .trailing_var_arg(true)
@@ -179,6 +196,7 @@ fn get_clap_command() -> clap::Command {
                     "stop-server",
                     "zero-stats",
                     "package-toolchain",
+                    "tu-stats",
                     "CMD",
                 ])
                 .required(true),
@@ -297,6 +315,10 @@ pub fn try_parse() -> Result<Command> {
                     (Some(exe), Some(out)) => Ok(Command::PackageToolchain(exe, out)),
                     _ => unreachable!("clap should enforce two values"),
                 }
+            } else if matches.get_flag("tu-stats") {
+                let stats_file = matches.get_one::<PathBuf>("tu-stats-file").cloned();
+                let csv = matches.get_flag("tu-stats-csv");
+                Ok(Command::TuStats { stats_file, csv })
             } else if matches.contains_id("CMD") {
                 let mut env_vars = env::vars_os().collect::<Vec<_>>();
 

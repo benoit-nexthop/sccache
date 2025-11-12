@@ -62,6 +62,7 @@ fn config_with_dist_auth(
             fail_on_dist_error: false,
         },
         server_startup_timeout_ms: None,
+        translation_unit_stats: Default::default(),
     }
 }
 
