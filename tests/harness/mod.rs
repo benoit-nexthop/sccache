@@ -192,6 +192,7 @@ pub fn sccache_client_cfg(
             fail_on_dist_error: false,
         },
         server_startup_timeout_ms: None,
+        translation_unit_stats: Default::default(),
     }
 }
 

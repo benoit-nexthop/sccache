@@ -119,6 +119,32 @@ bucket = "name"
 endpoint = "oss-us-east-1.aliyuncs.com"
 key_prefix = "ossprefix"
 no_credentials = true
+
+[translation_unit_stats]
+# Whether to collect translation unit statistics (default: false)
+enabled = true
+# Path to the statistics database file (optional, defaults to sccache cache dir)
+stats_file = "/path/to/tu_stats.db"
+```
+
+### Translation Unit Statistics
+
+When `translation_unit_stats.enabled` is set to `true`, sccache will collect detailed statistics about each compilation:
+
+- **Preprocessed size**: The size of the translation unit after preprocessing (in bytes)
+- **Number of includes**: The count of files that were `#include`d during preprocessing
+- **Preprocessing time**: How long it took to preprocess the file
+- **Compilation time**: How long it took to compile the file
+- **Distributed compilation**: Whether the compilation was distributed to a remote server
+- **Retry count**: For distributed compilations with `retry_on_busy` enabled, how many retry attempts were needed
+
+The statistics are stored in a local database using [fjall](https://github.com/fjall-rs/fjall), a log-structured, embeddable key-value storage engine that handles concurrent writes safely. This feature requires building sccache with the `translation-unit-stats` feature flag:
+
+```bash
+cargo build --features translation-unit-stats
+```
+
+The statistics database can be queried programmatically using the fjall library, or you can implement custom tools to analyze the collected data.
 ```
 
 sccache looks for its configuration file at the path indicated by env variable `SCCACHE_CONF`.
