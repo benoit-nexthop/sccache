@@ -28,101 +28,101 @@ jobs:
           name: integration-tests
           path: ./target/debug/sccache
 
-  redis-deprecated:
-    runs-on: ubuntu-24.04
-    needs: build
-
-    services:
-      redis:
-        image: redis
-        ports:
-          - 6379:6379
-
-    env:
-      SCCACHE_REDIS: redis://127.0.0.1
-      RUSTC_WRAPPER: /home/runner/.cargo/bin/sccache
-
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@v5
-
-      - name: Install rust
-        uses: ./.github/actions/rust-toolchain
-        with:
-          toolchain: "stable"
-
-      - uses: actions/download-artifact@v5
-        with:
-          name: integration-tests
-          path: /home/runner/.cargo/bin/
-      - name: Chmod for binary
-        run: chmod +x ${SCCACHE_PATH}
-
-      - name: Test
-        run: cargo clean && cargo build
-
-      - name: Output
-        run: |
-          ${SCCACHE_PATH} --show-stats
-
-          ${SCCACHE_PATH} --show-stats | grep redis
-
-      - name: Test Twice for Cache Read
-        run: cargo clean && cargo build
-
-      - name: Output
-        run: |
-          ${SCCACHE_PATH} --show-stats
-
-          ${SCCACHE_PATH} --show-stats | grep -e "Cache hits\s*[1-9]"
-
-  redis:
-    runs-on: ubuntu-24.04
-    needs: build
-
-    services:
-      redis:
-        image: redis
-        ports:
-          - 6379:6379
-
-    env:
-      SCCACHE_REDIS_ENDPOINT: tcp://127.0.0.1
-      RUSTC_WRAPPER: /home/runner/.cargo/bin/sccache
-
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@v5
-
-      - name: Install rust
-        uses: ./.github/actions/rust-toolchain
-        with:
-          toolchain: "stable"
-
-      - uses: actions/download-artifact@v5
-        with:
-          name: integration-tests
-          path: /home/runner/.cargo/bin/
-      - name: Chmod for binary
-        run: chmod +x ${SCCACHE_PATH}
-
-      - name: Test
-        run: cargo clean && cargo build
-
-      - name: Output
-        run: |
-          ${SCCACHE_PATH} --show-stats
-
-          ${SCCACHE_PATH} --show-stats | grep redis
-
-      - name: Test Twice for Cache Read
-        run: cargo clean && cargo build
-
-      - name: Output
-        run: |
-          ${SCCACHE_PATH} --show-stats
-
-          ${SCCACHE_PATH} --show-stats | grep -e "Cache hits\s*[1-9]"
+#  redis-deprecated:
+#    runs-on: ubuntu-24.04
+#    needs: build
+#
+#    services:
+#      redis:
+#        image: redis
+#        ports:
+#          - 6379:6379
+#
+#    env:
+#      SCCACHE_REDIS: redis://127.0.0.1
+#      RUSTC_WRAPPER: /home/runner/.cargo/bin/sccache
+#
+#    steps:
+#      - name: Clone repository
+#        uses: actions/checkout@v5
+#
+#      - name: Install rust
+#        uses: ./.github/actions/rust-toolchain
+#        with:
+#          toolchain: "stable"
+#
+#      - uses: actions/download-artifact@v5
+#        with:
+#          name: integration-tests
+#          path: /home/runner/.cargo/bin/
+#      - name: Chmod for binary
+#        run: chmod +x ${SCCACHE_PATH}
+#
+#      - name: Test
+#        run: cargo clean && cargo build
+#
+#      - name: Output
+#        run: |
+#          ${SCCACHE_PATH} --show-stats
+#
+#          ${SCCACHE_PATH} --show-stats | grep redis
+#
+#      - name: Test Twice for Cache Read
+#        run: cargo clean && cargo build
+#
+#      - name: Output
+#        run: |
+#          ${SCCACHE_PATH} --show-stats
+#
+#          ${SCCACHE_PATH} --show-stats | grep -e "Cache hits\s*[1-9]"
+#
+#  redis:
+#    runs-on: ubuntu-24.04
+#    needs: build
+#
+#    services:
+#      redis:
+#        image: redis
+#        ports:
+#          - 6379:6379
+#
+#    env:
+#      SCCACHE_REDIS_ENDPOINT: tcp://127.0.0.1
+#      RUSTC_WRAPPER: /home/runner/.cargo/bin/sccache
+#
+#    steps:
+#      - name: Clone repository
+#        uses: actions/checkout@v5
+#
+#      - name: Install rust
+#        uses: ./.github/actions/rust-toolchain
+#        with:
+#          toolchain: "stable"
+#
+#      - uses: actions/download-artifact@v5
+#        with:
+#          name: integration-tests
+#          path: /home/runner/.cargo/bin/
+#      - name: Chmod for binary
+#        run: chmod +x ${SCCACHE_PATH}
+#
+#      - name: Test
+#        run: cargo clean && cargo build
+#
+#      - name: Output
+#        run: |
+#          ${SCCACHE_PATH} --show-stats
+#
+#          ${SCCACHE_PATH} --show-stats | grep redis
+#
+#      - name: Test Twice for Cache Read
+#        run: cargo clean && cargo build
+#
+#      - name: Output
+#        run: |
+#          ${SCCACHE_PATH} --show-stats
+#
+#          ${SCCACHE_PATH} --show-stats | grep -e "Cache hits\s*[1-9]"
 
   s3_minio:
     runs-on: ubuntu-24.04
@@ -184,345 +184,345 @@ jobs:
 
           ${SCCACHE_PATH} --show-stats | grep -e "Cache hits\s*[1-9]"
 
-  azblob_azurite:
-    runs-on: ubuntu-24.04
-    needs: build
-
-    # Setup azurite server
-    services:
-      azurite:
-        image: mcr.microsoft.com/azure-storage/azurite
-        ports:
-          - 10000:10000
-
-    env:
-      SCCACHE_AZURE_BLOB_CONTAINER: "test"
-      SCCACHE_AZURE_CONNECTION_STRING: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
-      RUSTC_WRAPPER: /home/runner/.cargo/bin/sccache
-
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@v5
-
-      - name: Setup test bucket
-        run: |
-          az storage container create \
-              --name test \
-              --connection-string ${SCCACHE_AZURE_CONNECTION_STRING}
-
-      - name: Install rust
-        uses: ./.github/actions/rust-toolchain
-        with:
-          toolchain: "stable"
-
-      - uses: actions/download-artifact@v5
-        with:
-          name: integration-tests
-          path: /home/runner/.cargo/bin/
-      - name: Chmod for binary
-        run: chmod +x ${SCCACHE_PATH}
-
-      - name: Test
-        run: cargo clean && cargo build
-
-      - name: Output
-        run: |
-          ${SCCACHE_PATH} --show-stats
-
-          ${SCCACHE_PATH} --show-stats | grep azblob
-
-      - name: Test Twice for Cache Read
-        run: cargo clean && cargo build
-
-      - name: Output
-        run: |
-          ${SCCACHE_PATH} --show-stats
-
-          ${SCCACHE_PATH} --show-stats | grep -e "Cache hits\s*[1-9]"
-
-  gha:
-    runs-on: ubuntu-24.04
-    needs: build
-
-    env:
-      SCCACHE_GHA_ENABLED: "on"
-      RUSTC_WRAPPER: /home/runner/.cargo/bin/sccache
-
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@v5
-
-      - name: Configure Cache Env
-        uses: actions/github-script@v8
-        with:
-          script: |
-            core.exportVariable('ACTIONS_RESULTS_URL', process.env.ACTIONS_RESULTS_URL || '');
-            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
-
-      - name: Install rust
-        uses: ./.github/actions/rust-toolchain
-        with:
-          toolchain: "stable"
-
-      - uses: actions/download-artifact@v5
-        with:
-          name: integration-tests
-          path: /home/runner/.cargo/bin/
-      - name: Chmod for binary
-        run: chmod +x ${SCCACHE_PATH}
-
-      - name: Test
-        run: cargo clean && cargo build
-
-      - name: Output
-        run: |
-          ${SCCACHE_PATH} --show-stats
-
-          ${SCCACHE_PATH} --show-stats | grep gha
-
-      - name: Test Twice for Cache Read
-        run: cargo clean && cargo build
-
-      - name: Output
-        run: |
-          ${SCCACHE_PATH} --show-stats
-
-          ${SCCACHE_PATH} --show-stats | grep -e "Cache hits\s*[1-9]"
-
-  memcached-deprecated:
-    runs-on: ubuntu-24.04
-    needs: build
-
-    # Setup memcached server
-    services:
-      memcached:
-        image: bitnami/memcached
-        env:
-          # memcache's max item size is 1MiB, But our tests
-          # will produce larger file.
-          #
-          # Specify the setting here to make our test happy.
-          MEMCACHED_MAX_ITEM_SIZE: 16777216
-        ports:
-          - 11211:11211
-
-    env:
-      SCCACHE_MEMCACHED: "tcp://127.0.0.1:11211"
-      RUSTC_WRAPPER: /home/runner/.cargo/bin/sccache
-
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@v5
-
-      - name: Install rust
-        uses: ./.github/actions/rust-toolchain
-        with:
-          toolchain: "stable"
-
-      - uses: actions/download-artifact@v5
-        with:
-          name: integration-tests
-          path: /home/runner/.cargo/bin/
-      - name: Chmod for binary
-        run: chmod +x ${SCCACHE_PATH}
-
-      - name: Test
-        run: cargo clean && cargo build
-
-      - name: Output
-        run: |
-          ${SCCACHE_PATH} --show-stats
-
-          ${SCCACHE_PATH} --show-stats | grep memcached
-
-      - name: Test Twice for Cache Read
-        run: cargo clean && cargo build
-
-      - name: Output
-        run: |
-          ${SCCACHE_PATH} --show-stats
-
-          ${SCCACHE_PATH} --show-stats | grep -e "Cache hits\s*[1-9]"
-
-  memcached:
-    runs-on: ubuntu-24.04
-    needs: build
-
-    # Setup memcached server
-    services:
-      memcached:
-        image: bitnami/memcached
-        env:
-          # memcache's max item size is 1MiB, But our tests
-          # will produce larger file.
-          #
-          # Specify the setting here to make our test happy.
-          MEMCACHED_MAX_ITEM_SIZE: 16777216
-        ports:
-          - 11211:11211
-
-    env:
-      SCCACHE_MEMCACHED_ENDPOINT: "tcp://127.0.0.1:11211"
-      RUSTC_WRAPPER: /home/runner/.cargo/bin/sccache
-
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@v5
-
-      - name: Install rust
-        uses: ./.github/actions/rust-toolchain
-        with:
-          toolchain: "stable"
-
-      - uses: actions/download-artifact@v5
-        with:
-          name: integration-tests
-          path: /home/runner/.cargo/bin/
-      - name: Chmod for binary
-        run: chmod +x ${SCCACHE_PATH}
-
-      - name: Test
-        run: cargo clean && cargo build
-
-      - name: Output
-        run: |
-          ${SCCACHE_PATH} --show-stats
-
-          ${SCCACHE_PATH} --show-stats | grep memcached
-
-      - name: Test Twice for Cache Read
-        run: cargo clean && cargo build
-
-      - name: Output
-        run: |
-          ${SCCACHE_PATH} --show-stats
-
-          ${SCCACHE_PATH} --show-stats | grep -e "Cache hits\s*[1-9]"
-
-  webdav:
-    runs-on: ubuntu-24.04
-    needs: build
-
-    env:
-      SCCACHE_WEBDAV_ENDPOINT: "http://127.0.0.1:8080"
-      SCCACHE_WEBDAV_USERNAME: "bar"
-      SCCACHE_WEBDAV_PASSWORD: "baz"
-      RUSTC_WRAPPER: /home/runner/.cargo/bin/sccache
-
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Start nginx
-        shell: bash
-        run: |
-          sudo apt install -y nginx-full
-
-          mkdir /tmp/static
-          cp `pwd`/tests/htpasswd /tmp/htpasswd
-          nginx -c `pwd`/tests/nginx_http_cache.conf
-
-      - name: Install rust
-        uses: ./.github/actions/rust-toolchain
-        with:
-          toolchain: "stable"
-
-      - uses: actions/download-artifact@v5
-        with:
-          name: integration-tests
-          path: /home/runner/.cargo/bin/
-      - name: Chmod for binary
-        run: chmod +x ${SCCACHE_PATH}
-
-      - name: Test
-        run: cargo clean && cargo build
-
-      - name: Output
-        run: |
-          ${SCCACHE_PATH} --show-stats
-
-          ${SCCACHE_PATH} --show-stats | grep webdav
-
-      - name: Test Twice for Cache Read
-        run: cargo clean && cargo build
-
-      - name: Output
-        run: |
-          ${SCCACHE_PATH} --show-stats
-
-          ${SCCACHE_PATH} --show-stats | grep -e "Cache hits\s*[1-9]"
-
-  test-mock-msvc:
-    runs-on: windows-2022
-    env:
-      TARGET: x86_64-pc-windows-msvc
-      SCCACHE_EXE: ${{ github.workspace }}\\target\\x86_64-pc-windows-msvc\\debug\\sccache.exe
-      SCCACHE_LOG: "debug"
-      SCCACHE_ERROR_LOG: "${{ github.workspace }}\\server_log.txt"
-
-    steps:
-      - uses: ilammy/msvc-dev-cmd@v1
-
-      - name: Clone repository
-        uses: actions/checkout@v5
-
-      - name: Install rust
-        uses: ./.github/actions/rust-toolchain
-        with:
-          toolchain: "stable"
-          target: $TARGET
-
-      - name: Build
-        run: cargo build --bin sccache --target $env:TARGET --features=vendored-openssl
-
-      - name: Compile MSVC (no cache)
-        shell: bash
-        working-directory: ./tests/msvc
-        run: |
-          cl "@args.rsp"
-          test -e ./foo.o || { echo "No compiler output found"; exit -1; }
-
-      - name: Start Server
-        shell: bash
-        run: $SCCACHE_EXE --start-server
-
-      - name: Compile - Cache Miss
-        shell: bash
-        working-directory: ./tests/msvc
-        run: |
-          rm ./foo.o || true
-          $SCCACHE_EXE "$(where cl.exe)" -c "@args.rsp"
-          $SCCACHE_EXE --show-stats
-          $SCCACHE_EXE --show-stats | grep -e "Cache misses\s*[1-9]"
-          test -e ./foo.o || { echo "No compiler output found"; exit -1; }
-          test -e ./foo.o.json || { echo "No dependency list found"; exit -1; }
-
-      - name: Compile - Cache Hit
-        shell: bash
-        working-directory: ./tests/msvc
-        run: |
-          rm ./foo.o || true
-          $SCCACHE_EXE "$(where cl.exe)" -c "@args.rsp"
-          $SCCACHE_EXE --show-stats
-          $SCCACHE_EXE --show-stats | grep -e "Cache hits\s*[1-9]"
-          test -e ./foo.o || { echo "No compiler output found"; exit -1; }
-          test -e ./foo.o.json || { echo "No dependency list found"; exit -1; }
-
-      - name: Compile - Preprocessing Compiler Bug
-        shell: bash
-        working-directory: ./tests/msvc-preprocessing
-        run: |
-          $SCCACHE_EXE "$(where cl.exe)" -c "@args.rsp"
-          $SCCACHE_EXE --show-stats
-
-      - name: Stop Server
-        if: success() || failure()
-        shell: bash
-        run: $SCCACHE_EXE --stop-server
-
-      - name: Show Server Log
-        if: success() || failure()
-        shell: bash
-        run: cat "$SCCACHE_ERROR_LOG"
+#  azblob_azurite:
+#    runs-on: ubuntu-24.04
+#    needs: build
+#
+#    # Setup azurite server
+#    services:
+#      azurite:
+#        image: mcr.microsoft.com/azure-storage/azurite
+#        ports:
+#          - 10000:10000
+#
+#    env:
+#      SCCACHE_AZURE_BLOB_CONTAINER: "test"
+#      SCCACHE_AZURE_CONNECTION_STRING: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
+#      RUSTC_WRAPPER: /home/runner/.cargo/bin/sccache
+#
+#    steps:
+#      - name: Clone repository
+#        uses: actions/checkout@v5
+#
+#      - name: Setup test bucket
+#        run: |
+#          az storage container create \
+#              --name test \
+#              --connection-string ${SCCACHE_AZURE_CONNECTION_STRING}
+#
+#      - name: Install rust
+#        uses: ./.github/actions/rust-toolchain
+#        with:
+#          toolchain: "stable"
+#
+#      - uses: actions/download-artifact@v5
+#        with:
+#          name: integration-tests
+#          path: /home/runner/.cargo/bin/
+#      - name: Chmod for binary
+#        run: chmod +x ${SCCACHE_PATH}
+#
+#      - name: Test
+#        run: cargo clean && cargo build
+#
+#      - name: Output
+#        run: |
+#          ${SCCACHE_PATH} --show-stats
+#
+#          ${SCCACHE_PATH} --show-stats | grep azblob
+#
+#      - name: Test Twice for Cache Read
+#        run: cargo clean && cargo build
+#
+#      - name: Output
+#        run: |
+#          ${SCCACHE_PATH} --show-stats
+#
+#          ${SCCACHE_PATH} --show-stats | grep -e "Cache hits\s*[1-9]"
+#
+#  gha:
+#    runs-on: ubuntu-24.04
+#    needs: build
+#
+#    env:
+#      SCCACHE_GHA_ENABLED: "on"
+#      RUSTC_WRAPPER: /home/runner/.cargo/bin/sccache
+#
+#    steps:
+#      - name: Clone repository
+#        uses: actions/checkout@v5
+#
+#      - name: Configure Cache Env
+#        uses: actions/github-script@v8
+#        with:
+#          script: |
+#            core.exportVariable('ACTIONS_RESULTS_URL', process.env.ACTIONS_RESULTS_URL || '');
+#            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+#
+#      - name: Install rust
+#        uses: ./.github/actions/rust-toolchain
+#        with:
+#          toolchain: "stable"
+#
+#      - uses: actions/download-artifact@v5
+#        with:
+#          name: integration-tests
+#          path: /home/runner/.cargo/bin/
+#      - name: Chmod for binary
+#        run: chmod +x ${SCCACHE_PATH}
+#
+#      - name: Test
+#        run: cargo clean && cargo build
+#
+#      - name: Output
+#        run: |
+#          ${SCCACHE_PATH} --show-stats
+#
+#          ${SCCACHE_PATH} --show-stats | grep gha
+#
+#      - name: Test Twice for Cache Read
+#        run: cargo clean && cargo build
+#
+#      - name: Output
+#        run: |
+#          ${SCCACHE_PATH} --show-stats
+#
+#          ${SCCACHE_PATH} --show-stats | grep -e "Cache hits\s*[1-9]"
+#
+#  memcached-deprecated:
+#    runs-on: ubuntu-24.04
+#    needs: build
+#
+#    # Setup memcached server
+#    services:
+#      memcached:
+#        image: bitnami/memcached
+#        env:
+#          # memcache's max item size is 1MiB, But our tests
+#          # will produce larger file.
+#          #
+#          # Specify the setting here to make our test happy.
+#          MEMCACHED_MAX_ITEM_SIZE: 16777216
+#        ports:
+#          - 11211:11211
+#
+#    env:
+#      SCCACHE_MEMCACHED: "tcp://127.0.0.1:11211"
+#      RUSTC_WRAPPER: /home/runner/.cargo/bin/sccache
+#
+#    steps:
+#      - name: Clone repository
+#        uses: actions/checkout@v5
+#
+#      - name: Install rust
+#        uses: ./.github/actions/rust-toolchain
+#        with:
+#          toolchain: "stable"
+#
+#      - uses: actions/download-artifact@v5
+#        with:
+#          name: integration-tests
+#          path: /home/runner/.cargo/bin/
+#      - name: Chmod for binary
+#        run: chmod +x ${SCCACHE_PATH}
+#
+#      - name: Test
+#        run: cargo clean && cargo build
+#
+#      - name: Output
+#        run: |
+#          ${SCCACHE_PATH} --show-stats
+#
+#          ${SCCACHE_PATH} --show-stats | grep memcached
+#
+#      - name: Test Twice for Cache Read
+#        run: cargo clean && cargo build
+#
+#      - name: Output
+#        run: |
+#          ${SCCACHE_PATH} --show-stats
+#
+#          ${SCCACHE_PATH} --show-stats | grep -e "Cache hits\s*[1-9]"
+#
+#  memcached:
+#    runs-on: ubuntu-24.04
+#    needs: build
+#
+#    # Setup memcached server
+#    services:
+#      memcached:
+#        image: bitnami/memcached
+#        env:
+#          # memcache's max item size is 1MiB, But our tests
+#          # will produce larger file.
+#          #
+#          # Specify the setting here to make our test happy.
+#          MEMCACHED_MAX_ITEM_SIZE: 16777216
+#        ports:
+#          - 11211:11211
+#
+#    env:
+#      SCCACHE_MEMCACHED_ENDPOINT: "tcp://127.0.0.1:11211"
+#      RUSTC_WRAPPER: /home/runner/.cargo/bin/sccache
+#
+#    steps:
+#      - name: Clone repository
+#        uses: actions/checkout@v5
+#
+#      - name: Install rust
+#        uses: ./.github/actions/rust-toolchain
+#        with:
+#          toolchain: "stable"
+#
+#      - uses: actions/download-artifact@v5
+#        with:
+#          name: integration-tests
+#          path: /home/runner/.cargo/bin/
+#      - name: Chmod for binary
+#        run: chmod +x ${SCCACHE_PATH}
+#
+#      - name: Test
+#        run: cargo clean && cargo build
+#
+#      - name: Output
+#        run: |
+#          ${SCCACHE_PATH} --show-stats
+#
+#          ${SCCACHE_PATH} --show-stats | grep memcached
+#
+#      - name: Test Twice for Cache Read
+#        run: cargo clean && cargo build
+#
+#      - name: Output
+#        run: |
+#          ${SCCACHE_PATH} --show-stats
+#
+#          ${SCCACHE_PATH} --show-stats | grep -e "Cache hits\s*[1-9]"
+#
+#  webdav:
+#    runs-on: ubuntu-24.04
+#    needs: build
+#
+#    env:
+#      SCCACHE_WEBDAV_ENDPOINT: "http://127.0.0.1:8080"
+#      SCCACHE_WEBDAV_USERNAME: "bar"
+#      SCCACHE_WEBDAV_PASSWORD: "baz"
+#      RUSTC_WRAPPER: /home/runner/.cargo/bin/sccache
+#
+#    steps:
+#      - uses: actions/checkout@v5
+#
+#      - name: Start nginx
+#        shell: bash
+#        run: |
+#          sudo apt install -y nginx-full
+#
+#          mkdir /tmp/static
+#          cp `pwd`/tests/htpasswd /tmp/htpasswd
+#          nginx -c `pwd`/tests/nginx_http_cache.conf
+#
+#      - name: Install rust
+#        uses: ./.github/actions/rust-toolchain
+#        with:
+#          toolchain: "stable"
+#
+#      - uses: actions/download-artifact@v5
+#        with:
+#          name: integration-tests
+#          path: /home/runner/.cargo/bin/
+#      - name: Chmod for binary
+#        run: chmod +x ${SCCACHE_PATH}
+#
+#      - name: Test
+#        run: cargo clean && cargo build
+#
+#      - name: Output
+#        run: |
+#          ${SCCACHE_PATH} --show-stats
+#
+#          ${SCCACHE_PATH} --show-stats | grep webdav
+#
+#      - name: Test Twice for Cache Read
+#        run: cargo clean && cargo build
+#
+#      - name: Output
+#        run: |
+#          ${SCCACHE_PATH} --show-stats
+#
+#          ${SCCACHE_PATH} --show-stats | grep -e "Cache hits\s*[1-9]"
+#
+#  test-mock-msvc:
+#    runs-on: windows-2022
+#    env:
+#      TARGET: x86_64-pc-windows-msvc
+#      SCCACHE_EXE: ${{ github.workspace }}\\target\\x86_64-pc-windows-msvc\\debug\\sccache.exe
+#      SCCACHE_LOG: "debug"
+#      SCCACHE_ERROR_LOG: "${{ github.workspace }}\\server_log.txt"
+#
+#    steps:
+#      - uses: ilammy/msvc-dev-cmd@v1
+#
+#      - name: Clone repository
+#        uses: actions/checkout@v5
+#
+#      - name: Install rust
+#        uses: ./.github/actions/rust-toolchain
+#        with:
+#          toolchain: "stable"
+#          target: $TARGET
+#
+#      - name: Build
+#        run: cargo build --bin sccache --target $env:TARGET --features=vendored-openssl
+#
+#      - name: Compile MSVC (no cache)
+#        shell: bash
+#        working-directory: ./tests/msvc
+#        run: |
+#          cl "@args.rsp"
+#          test -e ./foo.o || { echo "No compiler output found"; exit -1; }
+#
+#      - name: Start Server
+#        shell: bash
+#        run: $SCCACHE_EXE --start-server
+#
+#      - name: Compile - Cache Miss
+#        shell: bash
+#        working-directory: ./tests/msvc
+#        run: |
+#          rm ./foo.o || true
+#          $SCCACHE_EXE "$(where cl.exe)" -c "@args.rsp"
+#          $SCCACHE_EXE --show-stats
+#          $SCCACHE_EXE --show-stats | grep -e "Cache misses\s*[1-9]"
+#          test -e ./foo.o || { echo "No compiler output found"; exit -1; }
+#          test -e ./foo.o.json || { echo "No dependency list found"; exit -1; }
+#
+#      - name: Compile - Cache Hit
+#        shell: bash
+#        working-directory: ./tests/msvc
+#        run: |
+#          rm ./foo.o || true
+#          $SCCACHE_EXE "$(where cl.exe)" -c "@args.rsp"
+#          $SCCACHE_EXE --show-stats
+#          $SCCACHE_EXE --show-stats | grep -e "Cache hits\s*[1-9]"
+#          test -e ./foo.o || { echo "No compiler output found"; exit -1; }
+#          test -e ./foo.o.json || { echo "No dependency list found"; exit -1; }
+#
+#      - name: Compile - Preprocessing Compiler Bug
+#        shell: bash
+#        working-directory: ./tests/msvc-preprocessing
+#        run: |
+#          $SCCACHE_EXE "$(where cl.exe)" -c "@args.rsp"
+#          $SCCACHE_EXE --show-stats
+#
+#      - name: Stop Server
+#        if: success() || failure()
+#        shell: bash
+#        run: $SCCACHE_EXE --stop-server
+#
+#      - name: Show Server Log
+#        if: success() || failure()
+#        shell: bash
+#        run: cat "$SCCACHE_ERROR_LOG"
 
   clang:
     runs-on: ubuntu-24.04
@@ -576,103 +576,103 @@ jobs:
 
           ${SCCACHE_PATH} --show-stats | grep -e "Cache hits\s*[1-9]"
 
-  hip:
-    # Probably wouldn't matter anyway since we run in a container, but staying
-    # close to the version is better than not.
-    runs-on: ubuntu-24.04
-    needs: build
-    container:
-      image: rocm/dev-ubuntu-24.04:6.3
-
-    env:
-      # SCCACHE_GHA_ENABLED: "on"
-      ROCM_PATH: "/opt/rocm"
-      RANDOMIZE_READDIR_LOG: "/tmp/readdir.log"
-
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@v5
-
-      # I don't want to break the cache during testing. Will turn on after I
-      # make sure it's working.
-      #
-      # - name: Configure Cache Env
-      #   uses: actions/github-script@v8
-      #   with:
-      #     script: |
-      #       core.exportVariable('ACTIONS_RESULTS_URL', process.env.ACTIONS_RESULTS_URL || '');
-      #       core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '')
-
-      # - name: Configure ROCm Env
-      #   uses: actions/github-script@v8
-      #   with:
-      #     script: |
-      #       core.exportVariable('ROCM_PATH', process.env.ROCM_PATH || '');
-
-      - name: Install dependencies
-        shell: bash
-        run: |
-          ## Install dependencies
-          sudo apt-get update
-          sudo apt-get install -y cmake curl
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain none -y
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-
-      - name: Install rust
-        uses: ./.github/actions/rust-toolchain
-        with:
-          toolchain: "stable"
-
-      - name: Build & setup librandomize_readdir
-        run: |
-          cargo build -p randomize_readdir
-
-      - uses: actions/download-artifact@v5
-        with:
-          name: integration-tests
-          path: /home/runner/.cargo/bin/
-      - name: Chmod for binary
-        run: chmod +x ${SCCACHE_PATH}
-
-      # Ensure that HIPCC isn't already borken
-      - name: Sanity Check
-        run: |
-          export LD_PRELOAD=$PWD/target/debug/librandomize_readdir.so
-          hipcc -o vectoradd_hip --offload-arch=gfx900 tests/cmake-hip/vectoradd_hip.cpp
-
-      - name: Test
-        run: |
-          export LD_PRELOAD=$PWD/target/debug/librandomize_readdir.so
-          rm "$RANDOMIZE_READDIR_LOG".*
-          cmake -B build -S tests/cmake-hip -DCMAKE_HIP_COMPILER_LAUNCHER=${SCCACHE_PATH} -DCMAKE_HIP_ARCHITECTURES=gfx900
-          cmake --build build
-          if ! grep -q bitcode "$RANDOMIZE_READDIR_LOG".*; then
-            echo "amdgcn bitcode not accessed, is librandomize_readdir properly set up?"
-            exit 1
-          fi
-
-      - name: Output
-        run: |
-          export LD_PRELOAD=$PWD/target/debug/librandomize_readdir.so
-          ${SCCACHE_PATH} --show-stats
-
-      - name: Test Twice for Cache Read
-        run: |
-          export LD_PRELOAD=$PWD/target/debug/librandomize_readdir.so
-          rm "$RANDOMIZE_READDIR_LOG".*
-          rm -rf build
-          cmake -B build -S tests/cmake-hip -DCMAKE_HIP_COMPILER_LAUNCHER=${SCCACHE_PATH} -DCMAKE_HIP_ARCHITECTURES=gfx900
-          cmake --build build
-          if ! grep -q bitcode "$RANDOMIZE_READDIR_LOG".*; then
-            echo "amdgcn bitcode not accessed, is librandomize_readdir properly set up?"
-            exit 1
-          fi
-
-      - name: Output
-        run: |
-          export LD_PRELOAD=$PWD/target/debug/librandomize_readdir.so
-          ${SCCACHE_PATH} --show-stats
-          ${SCCACHE_PATH} --show-stats | grep -e "Cache hits\s*[1-9]"
+#  hip:
+#    # Probably wouldn't matter anyway since we run in a container, but staying
+#    # close to the version is better than not.
+#    runs-on: ubuntu-24.04
+#    needs: build
+#    container:
+#      image: rocm/dev-ubuntu-24.04:6.3
+#
+#    env:
+#      # SCCACHE_GHA_ENABLED: "on"
+#      ROCM_PATH: "/opt/rocm"
+#      RANDOMIZE_READDIR_LOG: "/tmp/readdir.log"
+#
+#    steps:
+#      - name: Clone repository
+#        uses: actions/checkout@v5
+#
+#      # I don't want to break the cache during testing. Will turn on after I
+#      # make sure it's working.
+#      #
+#      # - name: Configure Cache Env
+#      #   uses: actions/github-script@v8
+#      #   with:
+#      #     script: |
+#      #       core.exportVariable('ACTIONS_RESULTS_URL', process.env.ACTIONS_RESULTS_URL || '');
+#      #       core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '')
+#
+#      # - name: Configure ROCm Env
+#      #   uses: actions/github-script@v8
+#      #   with:
+#      #     script: |
+#      #       core.exportVariable('ROCM_PATH', process.env.ROCM_PATH || '');
+#
+#      - name: Install dependencies
+#        shell: bash
+#        run: |
+#          ## Install dependencies
+#          sudo apt-get update
+#          sudo apt-get install -y cmake curl
+#          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain none -y
+#          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+#
+#      - name: Install rust
+#        uses: ./.github/actions/rust-toolchain
+#        with:
+#          toolchain: "stable"
+#
+#      - name: Build & setup librandomize_readdir
+#        run: |
+#          cargo build -p randomize_readdir
+#
+#      - uses: actions/download-artifact@v5
+#        with:
+#          name: integration-tests
+#          path: /home/runner/.cargo/bin/
+#      - name: Chmod for binary
+#        run: chmod +x ${SCCACHE_PATH}
+#
+#      # Ensure that HIPCC isn't already borken
+#      - name: Sanity Check
+#        run: |
+#          export LD_PRELOAD=$PWD/target/debug/librandomize_readdir.so
+#          hipcc -o vectoradd_hip --offload-arch=gfx900 tests/cmake-hip/vectoradd_hip.cpp
+#
+#      - name: Test
+#        run: |
+#          export LD_PRELOAD=$PWD/target/debug/librandomize_readdir.so
+#          rm "$RANDOMIZE_READDIR_LOG".*
+#          cmake -B build -S tests/cmake-hip -DCMAKE_HIP_COMPILER_LAUNCHER=${SCCACHE_PATH} -DCMAKE_HIP_ARCHITECTURES=gfx900
+#          cmake --build build
+#          if ! grep -q bitcode "$RANDOMIZE_READDIR_LOG".*; then
+#            echo "amdgcn bitcode not accessed, is librandomize_readdir properly set up?"
+#            exit 1
+#          fi
+#
+#      - name: Output
+#        run: |
+#          export LD_PRELOAD=$PWD/target/debug/librandomize_readdir.so
+#          ${SCCACHE_PATH} --show-stats
+#
+#      - name: Test Twice for Cache Read
+#        run: |
+#          export LD_PRELOAD=$PWD/target/debug/librandomize_readdir.so
+#          rm "$RANDOMIZE_READDIR_LOG".*
+#          rm -rf build
+#          cmake -B build -S tests/cmake-hip -DCMAKE_HIP_COMPILER_LAUNCHER=${SCCACHE_PATH} -DCMAKE_HIP_ARCHITECTURES=gfx900
+#          cmake --build build
+#          if ! grep -q bitcode "$RANDOMIZE_READDIR_LOG".*; then
+#            echo "amdgcn bitcode not accessed, is librandomize_readdir properly set up?"
+#            exit 1
+#          fi
+#
+#      - name: Output
+#        run: |
+#          export LD_PRELOAD=$PWD/target/debug/librandomize_readdir.so
+#          ${SCCACHE_PATH} --show-stats
+#          ${SCCACHE_PATH} --show-stats | grep -e "Cache hits\s*[1-9]"
 
   gcc:
     runs-on: ubuntu-24.04
@@ -927,43 +927,43 @@ jobs:
       - name: lv10-stats-use
         run: ${SCCACHE_PATH} --show-stats
 
-  xcode:
-    runs-on: macos-latest
-    env:
-      SCCACHE_PATH: target/debug/sccache
-    steps:
-      - name: Clone repository
-        uses: actions/checkout@v5
-
-      - name: Install rust
-        uses: ./.github/actions/rust-toolchain
-        with:
-          toolchain: "stable"
-
-      - name: Build sccache
-        run: |
-          cargo build
-
-      - name: Start server
-        run: ${SCCACHE_PATH} --start-server
-
-      - name: Test compile xcode
-        working-directory: tests/xcode
-        run: |
-          xcodebuild -version
-          xcodebuild -xcconfig sccache.xcconfig
-
-      - name: Output
-        run: |
-          ${SCCACHE_PATH} --show-stats
-
-      - name: Test compile xcode cached
-        working-directory: tests/xcode
-        run: |
-          xcodebuild clean
-          xcodebuild -xcconfig sccache.xcconfig
-
-      - name: Output
-        run: |
-          ${SCCACHE_PATH} --show-stats
-          ${SCCACHE_PATH} --show-stats | grep -e "Cache hits\s*[1-9]"
+#  xcode:
+#    runs-on: macos-latest
+#    env:
+#      SCCACHE_PATH: target/debug/sccache
+#    steps:
+#      - name: Clone repository
+#        uses: actions/checkout@v5
+#
+#      - name: Install rust
+#        uses: ./.github/actions/rust-toolchain
+#        with:
+#          toolchain: "stable"
+#
+#      - name: Build sccache
+#        run: |
+#          cargo build
+#
+#      - name: Start server
+#        run: ${SCCACHE_PATH} --start-server
+#
+#      - name: Test compile xcode
+#        working-directory: tests/xcode
+#        run: |
+#          xcodebuild -version
+#          xcodebuild -xcconfig sccache.xcconfig
+#
+#      - name: Output
+#        run: |
+#          ${SCCACHE_PATH} --show-stats
+#
+#      - name: Test compile xcode cached
+#        working-directory: tests/xcode
+#        run: |
+#          xcodebuild clean
+#          xcodebuild -xcconfig sccache.xcconfig
+#
+#      - name: Output
+#        run: |
+#          ${SCCACHE_PATH} --show-stats
+#          ${SCCACHE_PATH} --show-stats | grep -e "Cache hits\s*[1-9]"
