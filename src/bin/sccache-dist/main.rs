@@ -527,26 +527,47 @@ impl SchedulerIncoming for Scheduler {
                 return Ok(AllocJobResult::Fail { msg });
             }
         };
+        // Retry logic for connection failures to build servers (e.g., SSL certificate errors)
+        const MAX_ASSIGN_RETRIES: u32 = 3;
+        let mut assign_attempt = 0;
+        let assign_result = loop {
+            assign_attempt += 1;
+            match requester.do_assign_job(server_id, job_id, tc.clone(), auth.clone()) {
+                Ok(result) => break Ok(result),
+                Err(e) => {
+                    if assign_attempt >= MAX_ASSIGN_RETRIES {
+                        // Exhausted retries, handle the error
+                        break Err(e);
+                    }
+                    // Retry with exponential backoff for connection errors
+                    let sleep_millis = 1000 * (1 << (assign_attempt - 1)); // 1s, 2s, 4s
+                    warn!(
+                        "Failed to assign job {} to server {:?} (attempt {}/{}): {}. Retrying in {} ms...",
+                        job_id, server_id, assign_attempt, MAX_ASSIGN_RETRIES, e, sleep_millis
+                    );
+                    std::thread::sleep(std::time::Duration::from_millis(sleep_millis));
+                }
+            }
+        };
+
         let AssignJobResult {
             state,
             need_toolchain,
-        } = requester
-            .do_assign_job(server_id, job_id, tc, auth.clone())
-            .with_context(|| {
-                // LOCKS
-                let mut servers = self.servers.lock().unwrap();
-                if let Some(entry) = servers.get_mut(&server_id) {
-                    entry.last_error = Some(Instant::now());
-                    entry.jobs_unclaimed.remove(&job_id);
-                    if !entry.jobs_assigned.remove(&job_id) {
-                        "assign job failed and job not known to the server"
-                    } else {
-                        "assign job failed, job un-assigned from the server"
-                    }
+        } = assign_result.with_context(|| {
+            // LOCKS
+            let mut servers = self.servers.lock().unwrap();
+            if let Some(entry) = servers.get_mut(&server_id) {
+                entry.last_error = Some(Instant::now());
+                entry.jobs_unclaimed.remove(&job_id);
+                if !entry.jobs_assigned.remove(&job_id) {
+                    "assign job failed and job not known to the server"
                 } else {
-                    "assign job failed and server not known"
+                    "assign job failed, job un-assigned from the server"
                 }
-            })?;
+            } else {
+                "assign job failed and server not known"
+            }
+        })?;
         {
             // LOCKS
             let mut jobs = self.jobs.lock().unwrap();
