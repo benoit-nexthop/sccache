@@ -18,7 +18,9 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Install zstd
-        run: apk add --no-cache zstd
+        run: |
+          apt-get update
+          apt-get install -y zstd
 
       - name: Build static binary
         run: cargo build --locked --release --bin sccache --target x86_64-unknown-linux-musl --features=openssl/vendored
