@@ -17,6 +17,9 @@ jobs:
       - name: Clone repository
         uses: actions/checkout@v5
 
+      - name: Install zstd
+        run: apk add --no-cache zstd
+
       - name: Build static binary
         run: cargo build --locked --release --bin sccache --target x86_64-unknown-linux-musl --features=openssl/vendored
         env:
