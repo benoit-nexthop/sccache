@@ -25,9 +25,9 @@ jobs:
       - name: Build static binary
         run:
           cargo build --locked --release --bin sccache --target x86_64-unknown-linux-musl --features=openssl/vendored
-          zstdmt -19 target/x86_64-unknown-linux-musl/release/sccache -o sccache-latest-x86_64-unknown-linux-musl.zst
+          zstd -T0 -19 target/x86_64-unknown-linux-musl/release/sccache -o sccache-latest-x86_64-unknown-linux-musl.zst
           cargo build --locked --release --features dist-server --bin sccache-dist --target x86_64-unknown-linux-musl --features=openssl/vendored
-          zstdmt -19 target/x86_64-unknown-linux-musl/release/sccache-dist -o sccache-dist-latest-x86_64-unknown-linux-musl.zst
+          zstd -T0 -19 target/x86_64-unknown-linux-musl/release/sccache-dist -o sccache-dist-latest-x86_64-unknown-linux-musl.zst
         env:
           CARGO_PROFILE_RELEASE_LTO: true
 
