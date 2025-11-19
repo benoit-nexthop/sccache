@@ -847,7 +847,7 @@ where
                     if dist_client.retry_on_busy() || dist_client.remote_only() {
                         // Retry with random backoff
                         let sleep_millis = rand::thread_rng().gen_range(1000..=10000);
-                        debug!(
+                        info!(
                             "[{}]: Failed to allocate job: {}. Retrying in {} ms...",
                             out_pretty, msg, sleep_millis
                         );
