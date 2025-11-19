@@ -1078,6 +1078,7 @@ mod client {
     use futures::TryFutureExt;
     use reqwest::Body;
     use std::collections::HashMap;
+    use std::env;
     use std::io::Write;
     use std::path::{Path, PathBuf};
     use std::sync::{Arc, Mutex};
@@ -1090,8 +1091,16 @@ mod client {
     use super::urls;
     use crate::errors::*;
 
-    const REQUEST_TIMEOUT_SECS: u64 = 1200;
+    const DEFAULT_REQUEST_TIMEOUT_SECS: u64 = 1200;
     const CONNECT_TIMEOUT_SECS: u64 = 5;
+
+    /// Get the request timeout in seconds from the environment variable or use the default.
+    fn get_request_timeout_secs() -> u64 {
+        env::var("SCCACHE_DIST_REQUEST_TIMEOUT")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(DEFAULT_REQUEST_TIMEOUT_SECS)
+    }
 
     /// Configuration options for the distributed client
     pub struct ClientConfig {
@@ -1123,7 +1132,7 @@ mod client {
             auth_token: String,
             config: ClientConfig,
         ) -> Result<Self> {
-            let timeout = Duration::new(REQUEST_TIMEOUT_SECS, 0);
+            let timeout = Duration::new(get_request_timeout_secs(), 0);
             let connect_timeout = Duration::new(CONNECT_TIMEOUT_SECS, 0);
             let client = reqwest::ClientBuilder::new()
                 .timeout(timeout)
@@ -1167,7 +1176,7 @@ mod client {
                 );
             }
             // Finish the client
-            let timeout = Duration::new(REQUEST_TIMEOUT_SECS, 0);
+            let timeout = Duration::new(get_request_timeout_secs(), 0);
             let new_client_async = client_async_builder
                 .timeout(timeout)
                 // Disable keep-alive

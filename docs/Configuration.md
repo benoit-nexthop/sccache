@@ -159,6 +159,10 @@ configuration variables
   - If you want to be apply to all cache, you should reset cache and make new cache.
 * `SCCACHE_LOG_MILLIS` when set (to any value), enables millisecond precision timestamps in log output instead of the default second precision.
 
+### distributed compilation
+
+* `SCCACHE_DIST_REQUEST_TIMEOUT` timeout in seconds for HTTP requests to the distributed compilation scheduler and build servers. Default is `1200` (20 minutes). Increase this value if you have very large compilation jobs that take longer than 20 minutes to complete.
+
 ### cache configs
 
 #### disk (local)

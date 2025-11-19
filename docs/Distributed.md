@@ -289,6 +289,11 @@ certificate will be requested from the scheduler.
 
 Use the `--config` argument to pass the path to its configuration file to `sccache-dist`.
 
+### Environment Variables
+
+The following environment variables can be used to configure the distributed client:
+
+* `SCCACHE_DIST_REQUEST_TIMEOUT` - Timeout in seconds for HTTP requests to the scheduler and build servers. Default is `1200` (20 minutes). Increase this value if you have very large compilation jobs that take longer than 20 minutes to complete.
 
 ### scheduler.toml
 
